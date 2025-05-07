@@ -3010,16 +3010,19 @@ textarea.form-control-lg {
 
 .form-check-input:checked[type="checkbox"] {
   background-image: linear-gradient(310deg, #1e293b 0%, #1e293b 100%);
+  appearance: none;
 }
 
 .form-check-input:checked[type="radio"] {
   background-image: linear-gradient(310deg, #1e293b 0%, #1e293b 100%);
+
 }
 
 .form-check-input[type="checkbox"]:indeterminate {
   background-color: #774dd3;
   border-color: #774dd3;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10h8'/%3e%3c/svg%3e");
+
 }
 
 .form-check-input:disabled {
@@ -21598,16 +21601,19 @@ fieldset:disabled .btn {
   border: 1px solid #cbd3da;
   margin-top: 0.25rem;
   position: relative;
+
 }
 
 .form-check:not(.form-switch) .form-check-input[type="checkbox"]:checked,
 .form-check:not(.form-switch) .form-check-input[type="radio"]:checked {
   border: 0;
+
 }
 
 .form-check:not(.form-switch) .form-check-input.form-check-input-info:checked[type="radio"] {
   background-image: none;
   background-color: #55a6f8;
+
 }
 
 .form-check:not(.form-switch) .form-check-input[type="checkbox"]:after {
@@ -21623,6 +21629,7 @@ fieldset:disabled .btn {
   align-items: center;
   font-size: 0.7rem;
   opacity: 0;
+
 }
 
 .form-check:not(.form-switch) .form-check-input[type="checkbox"]:checked:after {
@@ -27574,6 +27581,36 @@ button.swiper-pagination-bullet {
 .swiper-button-prev:after {
   font-size: 1rem;
   color: #0f172a;
+}
+
+/* Other custom styles */
+.oblique-image {
+  clip-path: polygon(20% 0, 100% 0, 100% 100%, 0% 100%);
+}
+
+.blur {
+  backdrop-filter: blur(5px);
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Remove Bootstrap's default checkbox square */
+.form-check-input {
+  background-color: white;
+  border: 1px solid #212529 !important;
+}
+
+/* Custom checked state */
+.form-check-input:checked {
+  background-color: #212529 !important;
+  border-color: #212529 !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e") !important;
+}
+
+input[type="checkbox"] {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
 }
 
 /*# sourceMappingURL=dashboard-free.css.map */

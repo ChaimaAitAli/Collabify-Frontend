@@ -7,7 +7,6 @@ import "@/assets/css/nucleo-icons.css";
 import "@/assets/css/nucleo-svg.css";
 import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
 import "@/assets/css/corporate-ui-dashboard.min.css";
-//import signUp from "@/assets/img/image-sign-up.jpg";
 import team3 from "@/assets/img/team-3.jpg";
 import team4 from "@/assets/img/team-4.jpg";
 import team1 from "@/assets/img/team-1.jpg";
