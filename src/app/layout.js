@@ -1,7 +1,7 @@
 import "@/assets/css/nucleo-icons.css";
 import "@/assets/css/nucleo-svg.css";
 import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
-import "@/assets/css/corporate-ui-dashboard.min.css";
+
 export const metadata = {
   title: "Collabify",
   description: "Project Management App",
