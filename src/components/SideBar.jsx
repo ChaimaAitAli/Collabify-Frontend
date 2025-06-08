@@ -5,9 +5,10 @@ import "@/assets/css/nucleo-icons.css";
 import "@/assets/css/nucleo-svg.css";
 import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
 import logo from "@/assets/img/CollabifyMauve-removebg.png";
+import { useSidebar } from "@/app/contexts/SidebarContext";
 
 const SideBar = ({ activeTab, setActiveTab }) => {
-  const [projectsOpen, setProjectsOpen] = useState(false);
+  const { projectsOpen, setProjectsOpen } = useSidebar();
 
   const userProjects = [
     { id: 1, name: "Website Redesign" },
@@ -56,10 +57,7 @@ const SideBar = ({ activeTab, setActiveTab }) => {
       >
         <ul className="navbar-nav">
           <li className="nav-item">
-            <div
-              className="nav-link active"
-              onClick={() => setActiveTab("dashboard")}
-            >
+            <Link className="nav-link active" href="/dashboard">
               <div className="icon icon-shape icon-sm px-0 text-center d-flex align-items-center justify-content-center">
                 <svg
                   width="30px"
@@ -101,7 +99,7 @@ const SideBar = ({ activeTab, setActiveTab }) => {
                 </svg>
               </div>
               <span className="nav-link-text ms-1">Dashboard</span>
-            </div>
+            </Link>
           </li>
           <li className="nav-item">
             <div
@@ -195,8 +193,8 @@ const SideBar = ({ activeTab, setActiveTab }) => {
                 <ul className="list-unstyled ps-4 pt-1 pb-1">
                   {userProjects.map((project) => (
                     <li key={project.id} className="mb-1">
-                      <a
-                        href="#"
+                      <Link
+                        href={`/projects/${project.id}`}
                         className="text-sm py-2 px-2 d-block text-white opacity-80 hover:opacity-100 rounded hover:bg-gray-700"
                         style={{
                           transition: "all 0.2s ease",
@@ -216,13 +214,9 @@ const SideBar = ({ activeTab, setActiveTab }) => {
                               "rgba(55, 65, 81, 1)"; // bg-gray-700
                           }
                         }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setActiveTab(`project-${project.id}`);
-                        }}
                       >
                         {project.name}
-                      </a>
+                      </Link>
                     </li>
                   ))}
                   <li>
@@ -256,11 +250,7 @@ const SideBar = ({ activeTab, setActiveTab }) => {
             )}
           </li>
           <li className="nav-item">
-            <Link
-              className="nav-link"
-              onClick={() => setActiveTab("reports")}
-              href="#"
-            >
+            <Link className="nav-link" href="#">
               <div className="icon icon-shape icon-sm px-0 text-center d-flex align-items-center justify-content-center">
                 <svg
                   width="30px"

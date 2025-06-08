@@ -1,6 +1,7 @@
 import "@/assets/css/nucleo-icons.css";
 import "@/assets/css/nucleo-svg.css";
 import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
+import { SidebarProvider } from "./contexts/SidebarContext";
 
 export const metadata = {
   title: "Collabify",
@@ -8,7 +9,6 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
-
   return (
     <html lang="en">
       <head>
@@ -19,7 +19,7 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
-        {children}
+        <SidebarProvider>{children}</SidebarProvider>
       </body>
     </html>
   );
