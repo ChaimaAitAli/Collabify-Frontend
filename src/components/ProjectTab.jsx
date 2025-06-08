@@ -1,32 +1,9 @@
 import React, { useState } from "react";
+import getPriorityBadge from "./getPriorityBadge";
+import Task from "./Task";
+import LetterAvatar from "./LetterAvatar";
+import DraggableTask from "./DraggableTask";
 import Image from "next/image";
-
-// Mock LetterAvatar component for display
-const LetterAvatar = ({ name, size = "sm" }) => {
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .substring(0, 2);
-  const colors = ["#774dd3", "#e91e63", "#00bcd4", "#4caf50", "#ff9800"];
-  const colorIndex = name.length % colors.length;
-
-  return (
-    <div
-      className={`d-flex align-items-center justify-content-center rounded-circle text-white fw-bold ${
-        size === "sm" ? "me-2" : ""
-      }`}
-      style={{
-        backgroundColor: colors[colorIndex],
-        width: size === "sm" ? "32px" : "40px",
-        height: size === "sm" ? "32px" : "40px",
-        fontSize: size === "sm" ? "12px" : "14px",
-      }}
-    >
-      {initials}
-    </div>
-  );
-};
 
 // Custom styles for brand color
 const styles = {
@@ -329,52 +306,6 @@ const ProjectTab = ({
     });
   };
 
-  const getPriorityBadge = (priority) => {
-    switch (priority) {
-      case "High":
-        return (
-          <span
-            className="badge text-white ms-2"
-            style={{
-              backgroundColor: "#ea4e3d",
-              opacity: "0.6",
-              fontSize: "0.7rem",
-            }}
-          >
-            High
-          </span>
-        );
-      case "Medium":
-        return (
-          <span
-            className="badge text-white ms-2"
-            style={{
-              backgroundColor: "#f19937",
-              opacity: "0.6",
-              fontSize: "0.7rem",
-            }}
-          >
-            Medium
-          </span>
-        );
-      case "Low":
-        return (
-          <span
-            className="badge text-white ms-2"
-            style={{
-              backgroundColor: "#67c23a",
-              opacity: "0.6",
-              fontSize: "0.7rem",
-            }}
-          >
-            Low
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
     <>
       <div className="container-fluid py-4 px-5">
@@ -566,126 +497,12 @@ const ProjectTab = ({
                           </thead>
                           <tbody>
                             {getFilteredTasks().map((task) => (
-                              <tr key={task.id}>
-                                <td>
-                                  <div className="d-flex px-2 py-1">
-                                    <div className="d-flex flex-column justify-content-center">
-                                      <div
-                                        className="d-flex align-items-center mb-0"
-                                        style={{ minWidth: 0 }}
-                                      >
-                                        <h6
-                                          className="mb-0 text-sm font-weight-semibold text-truncate"
-                                          style={{
-                                            minWidth: 0,
-                                            flex: "1 1 auto",
-                                          }}
-                                        >
-                                          {task.name}
-                                        </h6>
-                                        <div
-                                          className="ms-2"
-                                          style={{ flexShrink: 0 }}
-                                        >
-                                          {getPriorityBadge(task.priority)}
-                                        </div>
-                                      </div>
-                                      <p className="text-sm text-secondary mb-0">
-                                        {task.function}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td>
-                                  <div className="d-flex px-2 py-1">
-                                    <div className="d-flex align-items-center">
-                                      <LetterAvatar
-                                        name={task.assignee.name}
-                                        size="sm"
-                                      />
-                                    </div>
-                                    <div className="d-flex flex-column justify-content-center ms-1">
-                                      <h6 className="mb-0 text-sm font-weight-semibold">
-                                        {task.assignee.name}
-                                      </h6>
-                                      <p className="text-sm text-secondary mb-0">
-                                        {task.assignee.email}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="align-middle text-center text-sm">
-                                  <span
-                                    className={`badge badge-sm border ${
-                                      task.status === "Done"
-                                        ? "border-success text-success bg-success"
-                                        : task.status === "In Progress"
-                                        ? "border-info text-info bg-info"
-                                        : "border-warning text-warning bg-warning"
-                                    }`}
-                                  >
-                                    {task.status}
-                                  </span>
-                                </td>
-                                <td className="align-middle text-center">
-                                  <span className="text-secondary text-sm font-weight-normal">
-                                    {task.dueDate}
-                                  </span>
-                                </td>
-                                <td className="align-middle">
-                                  <div className="d-flex gap-2">
-                                    <a
-                                      href="#"
-                                      className="text-secondary font-weight-bold text-xs"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        handleEditTask(task);
-                                      }}
-                                      style={{ cursor: "pointer" }}
-                                      title="Edit task"
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 15 16"
-                                        fill="none"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                      >
-                                        <path
-                                          d="M11.2201 2.02495C10.8292 1.63482 10.196 1.63545 9.80585 2.02636C9.41572 2.41727 9.41635 3.05044 9.80726 3.44057L11.2201 2.02495ZM12.5572 6.18502C12.9481 6.57516 13.5813 6.57453 13.9714 6.18362C14.3615 5.79271 14.3609 5.15954 13.97 4.7694L12.5572 6.18502ZM11.6803 1.56839L12.3867 2.2762L12.3867 2.27619L11.6803 1.56839ZM14.4302 4.31284L15.1367 5.02065L15.1367 5.02064L14.4302 4.31284ZM3.72198 15V16C3.98686 16 4.24091 15.8949 4.42839 15.7078L3.72198 15ZM0.999756 15H-0.000244141C-0.000244141 15.5523 0.447471 16 0.999756 16L0.999756 15ZM0.999756 12.2279L0.293346 11.5201C0.105383 11.7077 -0.000244141 11.9624 -0.000244141 12.2279H0.999756ZM9.80726 3.44057L12.5572 6.18502L13.97 4.7694L11.2201 2.02495L9.80726 3.44057ZM12.3867 2.27619C12.7557 1.90794 13.3549 1.90794 13.7238 2.27619L15.1367 0.860593C13.9869 -0.286864 12.1236 -0.286864 10.9739 0.860593L12.3867 2.27619ZM13.7238 2.27619C14.0917 2.64337 14.0917 3.23787 13.7238 3.60504L15.1367 5.02064C16.2875 3.8721 16.2875 2.00913 15.1367 0.860593L13.7238 2.27619ZM13.7238 3.60504L3.01557 14.2922L4.42839 15.7078L15.1367 5.02065L13.7238 3.60504ZM3.72198 14H0.999756V16H3.72198V14ZM1.99976 15V12.2279H-0.000244141V15H1.99976ZM1.70617 12.9357L12.3867 2.2762L10.9739 0.86059L0.293346 11.5201L1.70617 12.9357Z"
-                                          fill="#64748B"
-                                        />
-                                      </svg>
-                                    </a>
-                                    <a
-                                      href="#"
-                                      className="text-danger font-weight-bold text-xs"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        handleDeleteTask(task.id);
-                                      }}
-                                      style={{ cursor: "pointer" }}
-                                      title="Delete task"
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                      >
-                                        <path
-                                          d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14zM10 11v6M14 11v6"
-                                          stroke="#dc3545"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        />
-                                      </svg>
-                                    </a>
-                                  </div>
-                                </td>
-                              </tr>
+                              <Task
+                                key={task.id}
+                                task={task}
+                                handleDeleteTask={handleAddTask}
+                                handleEditTask={handleEditTask}
+                              />
                             ))}
 
                             {getFilteredTasks().length === 0 && (
@@ -750,55 +567,11 @@ const ProjectTab = ({
                             {tasks
                               .filter((task) => task.status === "To Do")
                               .map((task) => (
-                                <div
+                                <DraggableTask
                                   key={task.id}
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, task)}
-                                  className="card mb-3 shadow-sm border-0"
-                                  style={{
-                                    cursor: "grab",
-                                    transition: "all 0.2s ease",
-                                    borderLeft: "4px solid #8b5cf6",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform =
-                                      "translateY(-2px)";
-                                    e.currentTarget.style.boxShadow =
-                                      "0 4px 15px rgba(139, 92, 246, 0.15)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform =
-                                      "translateY(0)";
-                                    e.currentTarget.style.boxShadow =
-                                      "0 1px 3px rgba(0,0,0,0.1)";
-                                  }}
-                                >
-                                  <div className="card-body p-3">
-                                    <h6 className="mb-2 fw-semibold text-dark">
-                                      {task.name}
-                                      {getPriorityBadge(task.priority)}
-                                    </h6>
-                                    <div className="d-flex align-items-center justify-content-between">
-                                      <div className="d-flex align-items-center">
-                                        <LetterAvatar
-                                          name={task.assignee.name}
-                                          size="sm"
-                                        />
-                                        <div className="ms-2">
-                                          <small className="text-dark fw-semibold d-block">
-                                            {task.assignee.name}
-                                          </small>
-                                          <small className="text-muted">
-                                            {task.function}
-                                          </small>
-                                        </div>
-                                      </div>
-                                      <small className="text-muted">
-                                        {task.dueDate}
-                                      </small>
-                                    </div>
-                                  </div>
-                                </div>
+                                  task={task}
+                                  handleDragStart={handleDragStart}
+                                />
                               ))}
                             {tasks.filter((task) => task.status === "To Do")
                               .length === 0 && (
@@ -872,55 +645,11 @@ const ProjectTab = ({
                             {tasks
                               .filter((task) => task.status === "In Progress")
                               .map((task) => (
-                                <div
+                                <DraggableTask
                                   key={task.id}
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, task)}
-                                  className="card mb-3 shadow-sm border-0"
-                                  style={{
-                                    cursor: "grab",
-                                    transition: "all 0.2s ease",
-                                    borderLeft: "4px solid #ffc107",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform =
-                                      "translateY(-2px)";
-                                    e.currentTarget.style.boxShadow =
-                                      "0 4px 15px rgba(0,0,0,0.1)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform =
-                                      "translateY(0)";
-                                    e.currentTarget.style.boxShadow =
-                                      "0 1px 3px rgba(0,0,0,0.1)";
-                                  }}
-                                >
-                                  <div className="card-body p-3">
-                                    <h6 className="mb-2 fw-semibold text-dark">
-                                      {task.name}
-                                      {getPriorityBadge(task.priority)}
-                                    </h6>
-                                    <div className="d-flex align-items-center justify-content-between">
-                                      <div className="d-flex align-items-center">
-                                        <LetterAvatar
-                                          name={task.assignee.name}
-                                          size="sm"
-                                        />
-                                        <div className="ms-2">
-                                          <small className="text-dark fw-semibold d-block">
-                                            {task.assignee.name}
-                                          </small>
-                                          <small className="text-muted">
-                                            {task.function}
-                                          </small>
-                                        </div>
-                                      </div>
-                                      <small className="text-muted">
-                                        {task.dueDate}
-                                      </small>
-                                    </div>
-                                  </div>
-                                </div>
+                                  task={task}
+                                  handleDragStart={handleDragStart}
+                                />
                               ))}
                             {tasks.filter(
                               (task) => task.status === "In Progress"
@@ -991,56 +720,11 @@ const ProjectTab = ({
                             {tasks
                               .filter((task) => task.status === "Done")
                               .map((task) => (
-                                <div
+                                <DraggableTask
                                   key={task.id}
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, task)}
-                                  className="card mb-3 shadow-sm border-0"
-                                  style={{
-                                    cursor: "grab",
-                                    transition: "all 0.2s ease",
-                                    borderLeft: "4px solid #198754",
-                                    opacity: "0.9",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform =
-                                      "translateY(-2px)";
-                                    e.currentTarget.style.boxShadow =
-                                      "0 4px 15px rgba(0,0,0,0.1)";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform =
-                                      "translateY(0)";
-                                    e.currentTarget.style.boxShadow =
-                                      "0 1px 3px rgba(0,0,0,0.1)";
-                                  }}
-                                >
-                                  <div className="card-body p-3">
-                                    <h6 className="mb-2 fw-semibold text-dark">
-                                      {task.name}
-                                      {getPriorityBadge(task.priority)}
-                                    </h6>
-                                    <div className="d-flex align-items-center justify-content-between">
-                                      <div className="d-flex align-items-center">
-                                        <LetterAvatar
-                                          name={task.assignee.name}
-                                          size="sm"
-                                        />
-                                        <div className="ms-2">
-                                          <small className="text-dark fw-semibold d-block">
-                                            {task.assignee.name}
-                                          </small>
-                                          <small className="text-muted">
-                                            {task.function}
-                                          </small>
-                                        </div>
-                                      </div>
-                                      <small className="text-muted">
-                                        {task.dueDate}
-                                      </small>
-                                    </div>
-                                  </div>
-                                </div>
+                                  task={task}
+                                  handleDragStart={handleDragStart}
+                                />
                               ))}
                             {tasks.filter((task) => task.status === "Done")
                               .length === 0 && (
@@ -1072,12 +756,662 @@ const ProjectTab = ({
                 )}
 
                 {activeTab === "summary" && (
-                  <div className="card border shadow-xs p-3">
-                    <h6 className="mb-4">Project Summary</h6>
-                    <p className="text-muted">
-                      This section will contain reports and graphs showing
-                      project progress statistics.
-                    </p>
+                  <div className="row g-4">
+                    {/* Project Overview Card */}
+                    <div className="col-12">
+                      <div className="card shadow-xs border">
+                        <div className="card-header pb-0">
+                          <div className="d-sm-flex align-items-center mb-3">
+                            <div>
+                              <h6 className="font-weight-semibold text-lg mb-0">
+                                Project Progress Overview
+                              </h6>
+                              <p className="text-sm mb-sm-0 mb-2">
+                                Track your project completion and team
+                                productivity.
+                              </p>
+                            </div>
+                            <div className="ms-auto d-flex">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-white mb-0 me-2"
+                              >
+                                <i className="fas fa-download me-1"></i>
+                                Export Report
+                              </button>
+                            </div>
+                          </div>
+                          <div className="d-sm-flex align-items-center">
+                            <h3 className="mb-0 font-weight-semibold">
+                              {Math.round(
+                                (tasks.filter((task) => task.status === "Done")
+                                  .length /
+                                  tasks.length) *
+                                  100
+                              )}
+                              % Complete
+                            </h3>
+                            <span
+                              className={`badge badge-sm border ms-sm-3 px-2 ${
+                                tasks.filter((task) => task.status === "Done")
+                                  .length /
+                                  tasks.length >=
+                                0.5
+                                  ? "border-success text-success bg-success"
+                                  : "border-warning text-warning bg-warning"
+                              } border-radius-sm`}
+                            >
+                              <svg
+                                width="9"
+                                height="9"
+                                viewBox="0 0 10 9"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  d="M0.46967 4.46967C0.176777 4.76256 0.176777 5.23744 0.46967 5.53033C0.762563 5.82322 1.23744 5.82322 1.53033 5.53033L0.46967 4.46967ZM5.53033 1.53033C5.82322 1.23744 5.82322 0.762563 5.53033 0.46967C5.23744 0.176777 4.76256 0.176777 4.46967 0.46967L5.53033 1.53033ZM5.53033 0.46967C5.23744 0.176777 4.76256 0.176777 4.46967 0.46967C4.17678 0.762563 4.17678 1.23744 4.46967 1.53033L5.53033 0.46967ZM8.46967 5.53033C8.76256 5.82322 9.23744 5.82322 9.53033 5.53033C9.82322 5.23744 9.82322 4.76256 9.53033 4.46967L8.46967 5.53033ZM1.53033 5.53033L5.53033 1.53033L4.46967 0.46967L0.46967 4.46967L1.53033 5.53033ZM4.46967 1.53033L8.46967 5.53033L9.53033 4.46967L5.53033 0.46967L4.46967 1.53033Z"
+                                  fill="currentColor"
+                                ></path>
+                              </svg>
+                              {
+                                tasks.filter((task) => task.status === "Done")
+                                  .length
+                              }{" "}
+                              of {tasks.length} tasks
+                            </span>
+                          </div>
+                        </div>
+                        <div className="card-body p-3">
+                          <div className="chart mt-n6">
+                            <canvas
+                              id="progress-chart"
+                              className="chart-canvas"
+                              height="300"
+                              ref={(canvas) => {
+                                if (canvas && !canvas.chartInstance) {
+                                  const ctx = canvas.getContext("2d");
+                                  // Simulated progress data over time
+                                  const progressData = [
+                                    {
+                                      date: "2025-05-01",
+                                      completed: 0,
+                                      total: 3,
+                                    },
+                                    {
+                                      date: "2025-05-10",
+                                      completed: 0,
+                                      total: 3,
+                                    },
+                                    {
+                                      date: "2025-05-15",
+                                      completed: 1,
+                                      total: 3,
+                                    },
+                                    {
+                                      date: "2025-05-20",
+                                      completed: 1,
+                                      total: 3,
+                                    },
+                                    {
+                                      date: "2025-05-25",
+                                      completed: 1,
+                                      total: 3,
+                                    },
+                                    {
+                                      date: "2025-05-30",
+                                      completed: 1,
+                                      total: 3,
+                                    },
+                                    {
+                                      date: "2025-06-05",
+                                      completed: 1,
+                                      total: 3,
+                                    },
+                                  ];
+
+                                  // Simple canvas drawing for progress line
+                                  const width = canvas.width;
+                                  const height = canvas.height;
+                                  const padding = 40;
+
+                                  ctx.clearRect(0, 0, width, height);
+                                  ctx.strokeStyle = styles.brandColor;
+                                  ctx.lineWidth = 3;
+                                  ctx.beginPath();
+
+                                  progressData.forEach((point, index) => {
+                                    const x =
+                                      padding +
+                                      (index * (width - 2 * padding)) /
+                                        (progressData.length - 1);
+                                    const y =
+                                      height -
+                                      padding -
+                                      (point.completed / point.total) *
+                                        (height - 2 * padding);
+
+                                    if (index === 0) {
+                                      ctx.moveTo(x, y);
+                                    } else {
+                                      ctx.lineTo(x, y);
+                                    }
+                                  });
+
+                                  ctx.stroke();
+                                  canvas.chartInstance = true;
+                                }
+                              }}
+                            ></canvas>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Task Distribution and Team Performance */}
+                    <div className="col-lg-6 col-md-6">
+                      <div className="card shadow-xs border h-100">
+                        <div className="card-header pb-0">
+                          <h6 className="font-weight-semibold text-lg mb-0">
+                            Task Distribution
+                          </h6>
+                          <p className="text-sm">
+                            Breakdown of tasks by status and priority.
+                          </p>
+                        </div>
+                        <div className="card-body py-3">
+                          {/* Task Status Distribution */}
+                          <div className="mb-4">
+                            <h6 className="text-sm font-weight-semibold mb-3">
+                              By Status
+                            </h6>
+                            <div className="row">
+                              <div className="col-4 text-center">
+                                <div
+                                  className="rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center"
+                                  style={{
+                                    width: "60px",
+                                    height: "60px",
+                                    background:
+                                      "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                                    color: "white",
+                                  }}
+                                >
+                                  <span className="font-weight-bold">
+                                    {
+                                      tasks.filter(
+                                        (task) => task.status === "To Do"
+                                      ).length
+                                    }
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted mb-0">To Do</p>
+                              </div>
+                              <div className="col-4 text-center">
+                                <div
+                                  className="rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center"
+                                  style={{
+                                    width: "60px",
+                                    height: "60px",
+                                    background:
+                                      "linear-gradient(135deg, #ffc107, #e0a800)",
+                                    color: "white",
+                                  }}
+                                >
+                                  <span className="font-weight-bold">
+                                    {
+                                      tasks.filter(
+                                        (task) => task.status === "In Progress"
+                                      ).length
+                                    }
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted mb-0">
+                                  In Progress
+                                </p>
+                              </div>
+                              <div className="col-4 text-center">
+                                <div
+                                  className="rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center"
+                                  style={{
+                                    width: "60px",
+                                    height: "60px",
+                                    background:
+                                      "linear-gradient(135deg, #198754, #146c43)",
+                                    color: "white",
+                                  }}
+                                >
+                                  <span className="font-weight-bold">
+                                    {
+                                      tasks.filter(
+                                        (task) => task.status === "Done"
+                                      ).length
+                                    }
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted mb-0">Done</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Priority Distribution */}
+                          <div className="mb-3">
+                            <h6 className="text-sm font-weight-semibold mb-3">
+                              By Priority
+                            </h6>
+                            {["High", "Medium", "Low"].map((priority) => {
+                              const count = tasks.filter(
+                                (task) => task.priority === priority
+                              ).length;
+                              const percentage =
+                                tasks.length > 0
+                                  ? (count / tasks.length) * 100
+                                  : 0;
+                              const colors = {
+                                High: "#dc3545",
+                                Medium: "#ffc107",
+                                Low: "#28a745",
+                              };
+
+                              return (
+                                <div key={priority} className="mb-2">
+                                  <div className="d-flex justify-content-between">
+                                    <span className="text-sm">{priority}</span>
+                                    <span className="text-sm font-weight-semibold">
+                                      {count} tasks
+                                    </span>
+                                  </div>
+                                  <div
+                                    className="progress"
+                                    style={{ height: "6px" }}
+                                  >
+                                    <div
+                                      className="progress-bar"
+                                      style={{
+                                        width: `${percentage}%`,
+                                        backgroundColor: colors[priority],
+                                      }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Team Performance */}
+                    <div className="col-lg-6 col-md-6">
+                      <div className="card shadow-xs border h-100">
+                        <div className="card-header pb-0">
+                          <h6 className="font-weight-semibold text-lg mb-0">
+                            Team Performance
+                          </h6>
+                          <p className="text-sm">
+                            Individual task assignments and completion rates.
+                          </p>
+                          <div className="btn-group btn-group-sm" role="group">
+                            <input
+                              type="radio"
+                              className="btn-check"
+                              name="teamview"
+                              id="teamview1"
+                              autoComplete="off"
+                              defaultChecked
+                            />
+                            <label
+                              className="btn btn-white px-3 mb-0"
+                              htmlFor="teamview1"
+                            >
+                              Tasks
+                            </label>
+                            <input
+                              type="radio"
+                              className="btn-check"
+                              name="teamview"
+                              id="teamview2"
+                              autoComplete="off"
+                            />
+                            <label
+                              className="btn btn-white px-3 mb-0"
+                              htmlFor="teamview2"
+                            >
+                              Completion
+                            </label>
+                          </div>
+                        </div>
+                        <div className="card-body py-3">
+                          {(() => {
+                            const teamStats = {};
+                            tasks.forEach((task) => {
+                              if (!teamStats[task.assignee.name]) {
+                                teamStats[task.assignee.name] = {
+                                  total: 0,
+                                  completed: 0,
+                                  inProgress: 0,
+                                  todo: 0,
+                                };
+                              }
+                              teamStats[task.assignee.name].total++;
+                              if (task.status === "Done")
+                                teamStats[task.assignee.name].completed++;
+                              if (task.status === "In Progress")
+                                teamStats[task.assignee.name].inProgress++;
+                              if (task.status === "To Do")
+                                teamStats[task.assignee.name].todo++;
+                            });
+
+                            return Object.entries(teamStats).map(
+                              ([name, stats]) => {
+                                const completionRate =
+                                  stats.total > 0
+                                    ? (stats.completed / stats.total) * 100
+                                    : 0;
+
+                                return (
+                                  <div
+                                    key={name}
+                                    className="d-flex align-items-center mb-3"
+                                  >
+                                    <div className="me-3">
+                                      <div
+                                        className="avatar avatar-sm rounded-circle d-flex align-items-center justify-content-center"
+                                        style={{
+                                          background: styles.brandGradient,
+                                          color: "white",
+                                          fontSize: "0.75rem",
+                                          fontWeight: "bold",
+                                        }}
+                                      >
+                                        {name
+                                          .split(" ")
+                                          .map((n) => n[0])
+                                          .join("")}
+                                      </div>
+                                    </div>
+                                    <div className="flex-grow-1">
+                                      <div className="d-flex justify-content-between">
+                                        <h6 className="text-sm mb-1">{name}</h6>
+                                        <span className="text-xs text-muted">
+                                          {stats.total} tasks
+                                        </span>
+                                      </div>
+                                      <div
+                                        className="progress"
+                                        style={{ height: "4px" }}
+                                      >
+                                        <div
+                                          className="progress-bar bg-success"
+                                          style={{
+                                            width: `${
+                                              (stats.completed / stats.total) *
+                                              100
+                                            }%`,
+                                          }}
+                                        ></div>
+                                        <div
+                                          className="progress-bar bg-warning"
+                                          style={{
+                                            width: `${
+                                              (stats.inProgress / stats.total) *
+                                              100
+                                            }%`,
+                                          }}
+                                        ></div>
+                                      </div>
+                                      <div className="d-flex justify-content-between mt-1">
+                                        <small className="text-muted">
+                                          {stats.completed} done,{" "}
+                                          {stats.inProgress} in progress
+                                        </small>
+                                        <small className="text-muted">
+                                          {Math.round(completionRate)}%
+                                        </small>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recent Activity & Upcoming Deadlines */}
+                    <div className="col-lg-6 col-md-6">
+                      <div className="card shadow-xs border h-100">
+                        <div className="card-header pb-0">
+                          <h6 className="font-weight-semibold text-lg mb-0">
+                            Recent Activity
+                          </h6>
+                          <p className="text-sm">
+                            Latest project updates and changes.
+                          </p>
+                        </div>
+                        <div className="card-body py-3">
+                          <div className="timeline timeline-one-side">
+                            {tasks.slice(0, 4).map((task, index) => (
+                              <div
+                                key={task.id}
+                                className="timeline-block mb-3"
+                              >
+                                <span
+                                  className="timeline-step"
+                                  style={{
+                                    background:
+                                      task.status === "Done"
+                                        ? "#28a745"
+                                        : task.status === "In Progress"
+                                        ? "#ffc107"
+                                        : "#8b5cf6",
+                                    width: "12px",
+                                    height: "12px",
+                                  }}
+                                ></span>
+                                <div className="timeline-content">
+                                  <h6 className="text-dark text-sm font-weight-bold mb-0">
+                                    {task.name}
+                                  </h6>
+                                  <p className="text-secondary font-weight-bold text-xs mt-1 mb-0">
+                                    {task.status} • Assigned to{" "}
+                                    {task.assignee.name}
+                                  </p>
+                                  <p className="text-sm mt-1 mb-2">
+                                    Due:{" "}
+                                    {new Date(
+                                      task.dueDate
+                                    ).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <button className="btn btn-white btn-sm mb-0 ms-auto d-block">
+                            View All Activity
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Project Health Metrics */}
+                    <div className="col-lg-6 col-md-6">
+                      <div className="card shadow-xs border h-100">
+                        <div className="card-header pb-0">
+                          <h6 className="font-weight-semibold text-lg mb-0">
+                            Project Health
+                          </h6>
+                          <p className="text-sm">
+                            Key performance indicators and metrics.
+                          </p>
+                        </div>
+                        <div className="card-body py-3">
+                          {(() => {
+                            const overdueTasks = tasks.filter(
+                              (task) =>
+                                new Date(task.dueDate) < new Date() &&
+                                task.status !== "Done"
+                            ).length;
+
+                            const avgDaysToComplete =
+                              tasks.filter((task) => task.status === "Done")
+                                .length > 0
+                                ? Math.round(
+                                    tasks
+                                      .filter((task) => task.status === "Done")
+                                      .reduce((acc, task) => {
+                                        const created = new Date(
+                                          task.createdAt
+                                        );
+                                        const due = new Date(task.dueDate);
+                                        return (
+                                          acc +
+                                          Math.abs(due - created) /
+                                            (1000 * 60 * 60 * 24)
+                                        );
+                                      }, 0) /
+                                      tasks.filter(
+                                        (task) => task.status === "Done"
+                                      ).length
+                                  )
+                                : 0;
+
+                            const healthScore = Math.max(
+                              0,
+                              100 -
+                                overdueTasks * 20 -
+                                tasks.filter(
+                                  (task) =>
+                                    task.priority === "High" &&
+                                    task.status !== "Done"
+                                ).length *
+                                  15
+                            );
+
+                            return (
+                              <>
+                                <div className="row text-center mb-4">
+                                  <div className="col-6">
+                                    <h4
+                                      className="font-weight-bolder"
+                                      style={{
+                                        color:
+                                          overdueTasks === 0
+                                            ? "#28a745"
+                                            : "#dc3545",
+                                      }}
+                                    >
+                                      {overdueTasks}
+                                    </h4>
+                                    <span className="text-sm">
+                                      Overdue Tasks
+                                    </span>
+                                  </div>
+                                  <div className="col-6">
+                                    <h4
+                                      className="font-weight-bolder"
+                                      style={{ color: styles.brandColor }}
+                                    >
+                                      {avgDaysToComplete}
+                                    </h4>
+                                    <span className="text-sm">
+                                      Avg Days to Complete
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="mb-3">
+                                  <div className="d-flex justify-content-between">
+                                    <span className="text-sm">
+                                      Project Health Score
+                                    </span>
+                                    <span className="text-sm font-weight-semibold">
+                                      {healthScore}%
+                                    </span>
+                                  </div>
+                                  <div
+                                    className="progress"
+                                    style={{ height: "8px" }}
+                                  >
+                                    <div
+                                      className="progress-bar"
+                                      style={{
+                                        width: `${healthScore}%`,
+                                        background:
+                                          healthScore >= 80
+                                            ? "linear-gradient(90deg, #28a745, #20c997)"
+                                            : healthScore >= 60
+                                            ? "linear-gradient(90deg, #ffc107, #fd7e14)"
+                                            : "linear-gradient(90deg, #dc3545, #fd7e14)",
+                                      }}
+                                    ></div>
+                                  </div>
+                                  <small className="text-muted mt-1">
+                                    {healthScore >= 80
+                                      ? "Excellent progress!"
+                                      : healthScore >= 60
+                                      ? "Good progress, room for improvement"
+                                      : "Needs attention - consider adjusting timeline"}
+                                  </small>
+                                </div>
+
+                                <div
+                                  className="alert alert-light border-0"
+                                  style={{ backgroundColor: "#f8f9fa" }}
+                                >
+                                  <div className="d-flex align-items-center">
+                                    <i className="fas fa-lightbulb text-warning me-2"></i>
+                                    <div>
+                                      <strong className="text-dark">
+                                        Recommendations:
+                                      </strong>
+                                      <ul className="mb-0 mt-1 text-sm">
+                                        {overdueTasks > 0 && (
+                                          <li>
+                                            Address {overdueTasks} overdue task
+                                            {overdueTasks > 1 ? "s" : ""}
+                                          </li>
+                                        )}
+                                        {tasks.filter(
+                                          (task) =>
+                                            task.priority === "High" &&
+                                            task.status !== "Done"
+                                        ).length > 0 && (
+                                          <li>
+                                            Focus on{" "}
+                                            {
+                                              tasks.filter(
+                                                (task) =>
+                                                  task.priority === "High" &&
+                                                  task.status !== "Done"
+                                              ).length
+                                            }{" "}
+                                            high-priority task
+                                            {tasks.filter(
+                                              (task) =>
+                                                task.priority === "High" &&
+                                                task.status !== "Done"
+                                            ).length > 1
+                                              ? "s"
+                                              : ""}
+                                          </li>
+                                        )}
+                                        {healthScore >= 80 && (
+                                          <li>
+                                            Maintain current pace for on-time
+                                            delivery
+                                          </li>
+                                        )}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
