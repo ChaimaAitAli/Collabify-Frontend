@@ -10,7 +10,6 @@ export default function CreateProject() {
   const [formData, setFormData] = useState({
     projectName: "",
     description: "",
-    visibility: "public",
     members: [],
   });
 
@@ -179,10 +178,6 @@ export default function CreateProject() {
       newErrors.projectName = "Project name is required";
     }
 
-    if (!formData.visibility) {
-      newErrors.visibility = "Visibility is required";
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -269,27 +264,6 @@ export default function CreateProject() {
                           value={formData.description}
                           onChange={handleChange}
                         />
-                      </div>
-
-                      {/* Visibility */}
-                      <label>Visibility</label>
-                      <div className="mb-3">
-                        <select
-                          name="visibility"
-                          className={`form-control custom-select ${
-                            errors.visibility ? "is-invalid" : ""
-                          }`}
-                          value={formData.visibility}
-                          onChange={handleChange}
-                        >
-                          <option value="public">Public</option>
-                          <option value="private">Private</option>
-                        </select>
-                        {errors.visibility && (
-                          <div className="invalid-feedback">
-                            {errors.visibility}
-                          </div>
-                        )}
                       </div>
 
                       {/* Members */}
