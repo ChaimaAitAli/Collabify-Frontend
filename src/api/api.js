@@ -154,3 +154,47 @@ export const tokenManager = {
     }
   },
 };
+
+export const taskAPI = {
+  getTasksByProject: async (projectId) => {
+    return apiRequest(`/api/projects/${projectId}/tasks`);
+  },
+
+  createTask: async (taskData) => {
+    return apiRequest("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(taskData),
+    });
+  },
+
+  updateTask: async (taskId, taskData) => {
+    return apiRequest(`/api/tasks/${taskId}`, {
+      method: "PUT",
+      body: JSON.stringify(taskData),
+    });
+  },
+
+  updateTaskStatus: async (taskId, status) => {
+    return apiRequest(`/api/tasks/${taskId}/status?status=${status}`, {
+      method: "PATCH",
+    });
+  },
+
+  deleteTask: async (taskId) => {
+    return apiRequest(`/api/tasks/${taskId}`, {
+      method: "DELETE",
+    });
+  },
+
+  assignUser: async (taskId, userId) => {
+    return apiRequest(`/api/tasks/${taskId}/assignee/${userId}`, {
+      method: "POST",
+    });
+  },
+
+  unassignUser: async (taskId) => {
+    return apiRequest(`/api/tasks/${taskId}/assignee`, {
+      method: "DELETE",
+    });
+  },
+};

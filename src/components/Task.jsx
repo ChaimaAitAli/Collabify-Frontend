@@ -1,6 +1,54 @@
+import React from "react";
 import LetterAvatar from "./LetterAvatar";
 import getPriorityBadge from "./getPriorityBadge";
+
 const Task = ({ task, handleEditTask, handleDeleteTask }) => {
+  const getDisplayName = (user) => {
+    if (!user) return "Unknown User";
+
+    // Based on your UserDataDTO: firstname, lastname, email
+    const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim();
+
+    return fullName || user.email?.split("@")[0] || "Unknown User";
+  };
+
+  const getDisplayEmail = (user) => {
+    if (!user || !user.email) return "No email";
+    return user.email;
+  };
+
+  const renderAssigneeSection = () => {
+    if (!task.assignee) {
+      return (
+        <div className="d-flex px-2 py-1">
+          <div className="d-flex align-items-center">
+            <LetterAvatar name="Unassigned" size="sm" />
+          </div>
+          <div className="d-flex flex-column justify-content-center ms-1">
+            <h6 className="mb-0 text-sm font-weight-semibold">Unassigned</h6>
+            <p className="text-sm text-secondary mb-0">No assignee</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="d-flex px-2 py-1">
+        <div className="d-flex align-items-center">
+          <LetterAvatar name={getDisplayName(task.assignee)} size="sm" />
+        </div>
+        <div className="d-flex flex-column justify-content-center ms-1">
+          <h6 className="mb-0 text-sm font-weight-semibold">
+            {getDisplayName(task.assignee)}
+          </h6>
+          <p className="text-sm text-secondary mb-0">
+            {getDisplayEmail(task.assignee)}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <tr key={task.id}>
       <td>
@@ -23,23 +71,11 @@ const Task = ({ task, handleEditTask, handleDeleteTask }) => {
                 {getPriorityBadge(task.priority)}
               </div>
             </div>
-            <p className="text-sm text-secondary mb-0">{task.function}</p>
+            <p className="text-sm text-secondary mb-0">{task.description}</p>
           </div>
         </div>
       </td>
-      <td>
-        <div className="d-flex px-2 py-1">
-          <div className="d-flex align-items-center">
-            <LetterAvatar name={task.assignee.name} size="sm" />
-          </div>
-          <div className="d-flex flex-column justify-content-center ms-1">
-            <h6 className="mb-0 text-sm font-weight-semibold">
-              {task.assignee.name}
-            </h6>
-            <p className="text-sm text-secondary mb-0">{task.assignee.email}</p>
-          </div>
-        </div>
-      </td>
+      <td>{renderAssigneeSection()}</td>
       <td className="align-middle text-center text-sm">
         <span
           className={`badge badge-sm border ${
@@ -114,4 +150,5 @@ const Task = ({ task, handleEditTask, handleDeleteTask }) => {
     </tr>
   );
 };
+
 export default Task;

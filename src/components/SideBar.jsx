@@ -7,9 +7,9 @@ import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
 import logo from "@/assets/img/CollabifyMauve-removebg.png";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 
-import { projectAPI } from "@/api/api"; // Adjust the import path as needed
+import { projectAPI } from "@/api/api";
 
-const SideBar = ({ activeTab, setActiveTab }) => {
+const SideBar = ({ activeTab }) => {
   const { projectsOpen, setProjectsOpen } = useSidebar();
   const [userProjects, setUserProjects] = useState([]);
   const [loading, setLoading] = useState(true);

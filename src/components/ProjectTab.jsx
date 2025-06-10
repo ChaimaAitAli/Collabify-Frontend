@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import getPriorityBadge from "./getPriorityBadge";
 import Task from "./Task";
 import LetterAvatar from "./LetterAvatar";
 import DraggableTask from "./DraggableTask";
 import Image from "next/image";
+import { taskAPI, projectAPI, userAPI } from "@/api/api";
 
 // Custom styles for brand color
 const styles = {
@@ -13,100 +14,413 @@ const styles = {
   cardHeaderGradient: "linear-gradient(195deg, #774dd3, #673ab7)",
 };
 
-const ProjectTab = ({
-  project = {
-    name: "Website Redesign",
-    description:
-      "Comprehensive redesign of the company website focusing on improved UX and mobile responsiveness.",
-  },
-}) => {
+const ProjectTab = ({ project }) => {
   const [activeTab, setActiveTab] = useState("tasks");
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userCache, setUserCache] = useState(new Map());
+
   const [editForm, setEditForm] = useState({
     assignee: "",
     customAssignee: "",
   });
 
-  // Comments state
-  const [comments, setComments] = useState([
-    {
-      id: 1,
-      author: { name: "John Michael", email: "john@creative-tim.com" },
-      content:
-        "Great progress on the dashboard design! The new color scheme looks much more modern.",
-      timestamp: "2025-06-07T14:30:00Z",
-      edited: false,
-      likes: 5,
-      likedByUser: true,
-      replies: [
-        {
-          id: 11,
-          author: { name: "Sarah Wilson", email: "sarah@creative-tim.com" },
-          content: "I totally agree! The purple gradient looks fantastic.",
-          timestamp: "2025-06-07T15:00:00Z",
-          edited: false,
-          likes: 2,
-          likedByUser: false,
-          replies: [],
-        },
-      ],
-    },
-    {
-      id: 2,
-      author: { name: "Alexa Liras", email: "alexa@creative-tim.com" },
-      content:
-        "I've noticed some navigation issues on mobile. Should we prioritize fixing those before the next milestone?",
-      timestamp: "2025-06-07T10:15:00Z",
-      edited: false,
-      likes: 3,
-      likedByUser: false,
-      replies: [],
-    },
-    {
-      id: 3,
-      author: { name: "Laurent Perrier", email: "laurent@creative-tim.com" },
-      content:
-        "API integration is complete! All endpoints are now responding correctly. Ready for frontend implementation.",
-      timestamp: "2025-06-06T16:45:00Z",
-      edited: true,
-      likes: 8,
-      likedByUser: true,
-      replies: [
-        {
-          id: 31,
-          author: {
-            name: "Michael Johnson",
-            email: "michael@creative-tim.com",
-          },
-          content: "Excellent work! I'll start the frontend integration today.",
-          timestamp: "2025-06-06T17:00:00Z",
-          edited: false,
-          likes: 1,
-          likedByUser: false,
-          replies: [
-            {
-              id: 311,
-              author: {
-                name: "Laurent Perrier",
-                email: "laurent@creative-tim.com",
-              },
-              content:
-                "Perfect! Let me know if you need any clarification on the endpoints.",
-              timestamp: "2025-06-06T17:15:00Z",
-              edited: false,
-              likes: 0,
-              likedByUser: false,
-              replies: [],
-            },
-          ],
-        },
-      ],
-    },
-  ]);
+  // Form state
+  const [taskForm, setTaskForm] = useState({
+    name: "",
+    description: "",
+    assignee: "",
+    customAssignee: "",
+    priority: "Medium",
+    dueDate: "",
+  });
+  const getDisplayName = (user) => {
+    if (!user) return "Unknown User";
 
+    // Based on your User entity: firstname, lastname, email
+    const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim();
+
+    return fullName || user.email?.split("@")[0] || "Unknown User";
+  };
+  const [draggedTask, setDraggedTask] = useState(null);
+
+  // Get available assignees from project members and lead
+  const getAvailableAssignees = () => {
+    if (!project) return [];
+
+    const assignees = [];
+
+    // Add project lead
+    if (project.lead) {
+      assignees.push({
+        id: project.lead.id,
+        name:
+          project.lead.fullName ||
+          project.lead.name ||
+          `${project.lead.firstName} ${project.lead.lastName}`,
+        email: project.lead.email,
+      });
+    }
+
+    // Add project members
+    if (project.members && project.members.length > 0) {
+      project.members.forEach((member) => {
+        // Avoid duplicates
+        if (!assignees.find((a) => a.id === member.id)) {
+          assignees.push({
+            id: member.id,
+            name:
+              member.fullName ||
+              member.name ||
+              `${member.firstName} ${member.lastName}`,
+            email: member.email,
+          });
+        }
+      });
+    }
+
+    return assignees;
+  };
+
+  const availableAssignees = getAvailableAssignees();
+
+  // Fetch project tasks when component mounts or project changes
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (!project?.id) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        const tasksData = await taskAPI.getTasksByProject(project.id);
+
+        // Transform backend task data to match frontend format
+        const transformedTasks = await Promise.all(
+          tasksData.map(async (task) => {
+            let assignee = null;
+
+            // If task has assigneeId, fetch the assignee data
+            if (task.assigneeId) {
+              try {
+                const assigneeData = await userAPI.getUserById(task.assigneeId);
+                assignee = {
+                  id: assigneeData.id,
+                  firstname: assigneeData.firstname,
+                  lastname: assigneeData.lastname,
+                  email: assigneeData.email,
+                  // Add a computed name field for easier access
+                  name:
+                    `${assigneeData.firstname || ""} ${
+                      assigneeData.lastname || ""
+                    }`.trim() ||
+                    assigneeData.email?.split("@")[0] ||
+                    "Unknown User",
+                };
+              } catch (err) {
+                console.error(
+                  `Failed to fetch assignee ${task.assigneeId}:`,
+                  err
+                );
+                // Set a placeholder assignee to avoid breaking the UI
+                assignee = {
+                  id: task.assigneeId,
+                  firstname: "",
+                  lastname: "",
+                  email: "unknown@example.com",
+                  name: "Unknown User",
+                };
+              }
+            }
+
+            return {
+              id: task.id,
+              name: task.title,
+              description: task.description || "No description provided",
+              assignee: assignee, // This will now contain the full user data
+              assigneeId: task.assigneeId, // Keep this for reference
+              function: "General", // You might want to add this field to your backend
+              details: "Task",
+              status: task.status,
+              dueDate:
+                task.dueDate ||
+                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                  .toISOString()
+                  .split("T")[0],
+              createdAt: task.createdAt
+                ? new Date(task.createdAt).toISOString().split("T")[0]
+                : new Date().toISOString().split("T")[0],
+              priority: task.priority || "Medium",
+            };
+          })
+        );
+
+        setTasks(transformedTasks);
+      } catch (err) {
+        console.error("Failed to fetch project tasks:", err);
+        setError(err.message || "Failed to load tasks");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTasks();
+  }, [project]);
+
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+    setEditForm({
+      assignee: task.assignee?.name || "",
+      customAssignee: "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      try {
+        await taskAPI.deleteTask(taskId);
+        setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      } catch (err) {
+        console.error("Failed to delete task:", err);
+        alert("Failed to delete task. Please try again.");
+      }
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm.assignee.trim()) {
+      alert("Assignee is required");
+      return;
+    }
+
+    const assigneeName =
+      editForm.assignee === "custom"
+        ? editForm.customAssignee
+        : editForm.assignee;
+    if (!assigneeName.trim()) {
+      alert("Assignee is required");
+      return;
+    }
+
+    try {
+      // Find assignee
+      let assigneeId = null;
+      const existingAssignee = availableAssignees.find(
+        (a) => a.name === assigneeName
+      );
+
+      if (existingAssignee) {
+        assigneeId = existingAssignee.id;
+      }
+
+      if (assigneeId) {
+        // Update task assignee via API
+        await taskAPI.assignUser(editingTask.id, assigneeId);
+
+        // Update local state
+        setTasks((prev) =>
+          prev.map((task) =>
+            task.id === editingTask.id
+              ? {
+                  ...task,
+                  assignee: {
+                    id: existingAssignee.id,
+                    name: existingAssignee.name,
+                    email: existingAssignee.email,
+                  },
+                }
+              : task
+          )
+        );
+      }
+
+      closeEditModal();
+    } catch (err) {
+      console.error("Failed to update task:", err);
+      alert("Failed to update task. Please try again.");
+    }
+  };
+
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setEditingTask(null);
+    setEditForm({
+      assignee: "",
+      customAssignee: "",
+    });
+  };
+
+  const handleEditFormChange = (field, value) => {
+    setEditForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleDragStart = (e, task) => {
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = "move";
+    e.currentTarget.style.opacity = "0.5";
+  };
+
+  const handleDragEnd = (e) => {
+    e.currentTarget.style.opacity = "1";
+    setDraggedTask(null);
+  };
+
+  const handleDrop = async (e, newStatus) => {
+    e.preventDefault();
+    if (draggedTask && draggedTask.status !== newStatus) {
+      try {
+        // Update task status via API
+        await taskAPI.updateTaskStatus(
+          draggedTask.id,
+          newStatus.toUpperCase().replace(" ", "_")
+        );
+
+        // Update local state
+        setTasks((prevTasks) =>
+          prevTasks.map((task) =>
+            task.id === draggedTask.id ? { ...task, status: newStatus } : task
+          )
+        );
+      } catch (err) {
+        console.error("Failed to update task status:", err);
+        alert("Failed to update task status. Please try again.");
+      }
+    }
+    setDraggedTask(null);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  // Filter tasks based on search query
+  const getFilteredTasks = () => {
+    let filtered = [...tasks];
+
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (task) =>
+          task.name.toLowerCase().includes(query) ||
+          (task.assignee?.name || "").toLowerCase().includes(query) ||
+          task.status.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  };
+
+  const handleFormChange = (field, value) => {
+    setTaskForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleAddTask = async () => {
+    // Validation
+    if (!taskForm.name.trim()) {
+      alert("Task name is required");
+      return;
+    }
+
+    const assigneeName =
+      taskForm.assignee === "custom"
+        ? taskForm.customAssignee
+        : taskForm.assignee;
+    if (!assigneeName.trim()) {
+      alert("Assignee is required");
+      return;
+    }
+
+    try {
+      // Find assignee
+      let assigneeId = null;
+      const existingAssignee = availableAssignees.find(
+        (a) => a.name === assigneeName
+      );
+
+      if (existingAssignee) {
+        assigneeId = existingAssignee.id;
+      }
+
+      // Create task data for API
+      const taskData = {
+        title: taskForm.name,
+        description: taskForm.description || "No description provided",
+        projectId: project.id,
+        priority: taskForm.priority.toUpperCase(),
+        status: "To Do",
+        assigneeId: assigneeId,
+      };
+
+      // Create task via API
+      const newTaskResponse = await taskAPI.createTask(taskData);
+
+      // Transform and add to local state
+      const newTask = {
+        id: newTaskResponse.id,
+        name: newTaskResponse.title,
+        description: newTaskResponse.description,
+        assignee: newTaskResponse.assignee
+          ? {
+              id: newTaskResponse.assignee.id,
+              name:
+                newTaskResponse.assignee.fullName ||
+                `${newTaskResponse.assignee.firstName} ${newTaskResponse.assignee.lastName}`,
+              email: newTaskResponse.assignee.email,
+            }
+          : null,
+        details: "Task",
+        status: newTaskResponse.status,
+        dueDate:
+          taskForm.dueDate ||
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0],
+        createdAt: new Date().toISOString().split("T")[0],
+        priority: newTaskResponse.priority,
+      };
+
+      setTasks((prev) => [...prev, newTask]);
+      closeModal();
+    } catch (err) {
+      console.error("Failed to create task:", err);
+      alert("Failed to create task. Please try again.");
+    }
+  };
+
+  const closeModal = () => {
+    setShowAddTaskModal(false);
+    setTaskForm({
+      name: "",
+      description: "",
+      assignee: "",
+      customAssignee: "",
+      priority: "Medium",
+      dueDate: "",
+    });
+  };
+
+  // Don't render if no project
+  if (!project) {
+    return (
+      <div className="container-fluid py-4">
+        <div className="alert alert-warning">No project data available</div>
+      </div>
+    );
+  }
+
+  // Comments
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState("");
 
@@ -442,281 +756,81 @@ const ProjectTab = ({
       );
     }
   };
-
-  const handleEditTask = (task) => {
-    setEditingTask(task);
-    setEditForm({
-      assignee: task.assignee.name,
-      customAssignee: "",
-    });
-    setShowEditModal(true);
-  };
-
-  const handleDeleteTask = (taskId) => {
-    if (window.confirm("Are you sure you want to delete this task?")) {
-      setTasks((prev) => prev.filter((task) => task.id !== taskId));
-    }
-  };
-
-  const handleSaveEdit = () => {
-    if (!editForm.assignee.trim()) {
-      alert("Assignee is required");
-      return;
-    }
-
-    const assigneeName =
-      editForm.assignee === "custom"
-        ? editForm.customAssignee
-        : editForm.assignee;
-    if (!assigneeName.trim()) {
-      alert("Assignee is required");
-      return;
-    }
-
-    // Find or create assignee
-    let assignee;
-    const existingAssignee = availableAssignees.find(
-      (a) => a.name === assigneeName
-    );
-
-    if (existingAssignee) {
-      assignee = existingAssignee;
-    } else {
-      // Create new assignee with generated email
-      assignee = {
-        name: assigneeName,
-        email: `${assigneeName.toLowerCase().replace(" ", ".")}@company.com`,
-      };
-    }
-
-    // Update the task
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === editingTask.id ? { ...task, assignee: assignee } : task
-      )
-    );
-
-    closeEditModal();
-  };
-
-  const closeEditModal = () => {
-    setShowEditModal(false);
-    setEditingTask(null);
-    setEditForm({
-      assignee: "",
-      customAssignee: "",
-    });
-  };
-
-  const [draggedTask, setDraggedTask] = useState(null);
-
-  const handleEditFormChange = (field, value) => {
-    setEditForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  // Form state
-  const [taskForm, setTaskForm] = useState({
-    name: "",
-    description: "",
-    assignee: "",
-    customAssignee: "",
-    priority: "Medium",
-    dueDate: "",
-  });
-
-  const handleDragStart = (e, task) => {
-    setDraggedTask(task);
-    e.dataTransfer.effectAllowed = "move";
-    // Add some visual feedback
-    e.currentTarget.style.opacity = "0.5";
-  };
-
-  const handleDragEnd = (e) => {
-    e.currentTarget.style.opacity = "1";
-    setDraggedTask(null);
-  };
-
-  const handleDrop = (e, newStatus) => {
-    e.preventDefault();
-    if (draggedTask && draggedTask.status !== newStatus) {
-      setTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task.id === draggedTask.id ? { ...task, status: newStatus } : task
-        )
-      );
-    }
-    setDraggedTask(null);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  // Available assignees
-  const availableAssignees = [
-    { name: "John Michael", email: "john@creative-tim.com" },
-    { name: "Alexa Liras", email: "alexa@creative-tim.com" },
-    { name: "Laurent Perrier", email: "laurent@creative-tim.com" },
-    { name: "Michael Johnson", email: "michael@creative-tim.com" },
-    { name: "Sarah Wilson", email: "sarah@creative-tim.com" },
-  ];
-
-  const [tasks, setTasks] = useState([
+  const [comments, setComments] = useState([
     {
       id: 1,
-      name: "Design new dashboard",
-      description: "Create a modern and intuitive dashboard design",
-      assignee: {
-        name: "John Michael",
-        email: "john@creative-tim.com",
-        avatar: "../assets/img/team-2.jpg",
-      },
-      function: "UI/UX Design",
-      details: "Design",
-      status: "In Progress",
-      dueDate: "2025-06-01",
-      createdAt: "2025-05-15",
-      priority: "High",
+      author: { name: "John Michael", email: "john@creative-tim.com" },
+      content:
+        "Great progress on the dashboard design! The new color scheme looks much more modern.",
+      timestamp: "2025-06-07T14:30:00Z",
+      edited: false,
+      likes: 5,
+      likedByUser: true,
+      replies: [
+        {
+          id: 11,
+          author: { name: "Sarah Wilson", email: "sarah@creative-tim.com" },
+          content: "I totally agree! The purple gradient looks fantastic.",
+          timestamp: "2025-06-07T15:00:00Z",
+          edited: false,
+          likes: 2,
+          likedByUser: false,
+          replies: [],
+        },
+      ],
     },
     {
       id: 2,
-      name: "Fix navigation issues",
-      description: "Resolve navigation bugs and improve user flow",
-      assignee: {
-        name: "Alexa Liras",
-        email: "alexa@creative-tim.com",
-        avatar: "../assets/img/team-3.jpg",
-      },
-      function: "Frontend Dev",
-      details: "Development",
-      status: "To Do",
-      dueDate: "2025-05-30",
-      createdAt: "2025-05-10",
-      priority: "Medium",
+      author: { name: "Alexa Liras", email: "alexa@creative-tim.com" },
+      content:
+        "I've noticed some navigation issues on mobile. Should we prioritize fixing those before the next milestone?",
+      timestamp: "2025-06-07T10:15:00Z",
+      edited: false,
+      likes: 3,
+      likedByUser: false,
+      replies: [],
     },
     {
       id: 3,
-      name: "API integration",
-      description: "Integrate third-party APIs for data synchronization",
-      assignee: {
-        name: "Laurent Perrier",
-        email: "laurent@creative-tim.com",
-        avatar: "../assets/img/team-1.jpg",
-      },
-      function: "Backend Dev",
-      details: "Development",
-      status: "Done",
-      dueDate: "2025-05-18",
-      createdAt: "2025-05-01",
-      priority: "Low",
+      author: { name: "Laurent Perrier", email: "laurent@creative-tim.com" },
+      content:
+        "API integration is complete! All endpoints are now responding correctly. Ready for frontend implementation.",
+      timestamp: "2025-06-06T16:45:00Z",
+      edited: true,
+      likes: 8,
+      likedByUser: true,
+      replies: [
+        {
+          id: 31,
+          author: {
+            name: "Michael Johnson",
+            email: "michael@creative-tim.com",
+          },
+          content: "Excellent work! I'll start the frontend integration today.",
+          timestamp: "2025-06-06T17:00:00Z",
+          edited: false,
+          likes: 1,
+          likedByUser: false,
+          replies: [
+            {
+              id: 311,
+              author: {
+                name: "Laurent Perrier",
+                email: "laurent@creative-tim.com",
+              },
+              content:
+                "Perfect! Let me know if you need any clarification on the endpoints.",
+              timestamp: "2025-06-06T17:15:00Z",
+              edited: false,
+              likes: 0,
+              likedByUser: false,
+              replies: [],
+            },
+          ],
+        },
+      ],
     },
   ]);
-
-  // Filter tasks based on search query
-  const getFilteredTasks = () => {
-    let filtered = [...tasks];
-
-    if (searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (task) =>
-          task.name.toLowerCase().includes(query) ||
-          task.assignee.name.toLowerCase().includes(query) ||
-          task.status.toLowerCase().includes(query) ||
-          task.function.toLowerCase().includes(query)
-      );
-    }
-
-    return filtered;
-  };
-
-  const handleFormChange = (field, value) => {
-    setTaskForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  const handleAddTask = () => {
-    // Validation
-    if (!taskForm.name.trim()) {
-      alert("Task name is required");
-      return;
-    }
-
-    const assigneeName =
-      taskForm.assignee === "custom"
-        ? taskForm.customAssignee
-        : taskForm.assignee;
-    if (!assigneeName.trim()) {
-      alert("Assignee is required");
-      return;
-    }
-
-    // Find or create assignee
-    let assignee;
-    const existingAssignee = availableAssignees.find(
-      (a) => a.name === assigneeName
-    );
-
-    if (existingAssignee) {
-      assignee = existingAssignee;
-    } else {
-      // Create new assignee with generated email
-      assignee = {
-        name: assigneeName,
-        email: `${assigneeName.toLowerCase().replace(" ", ".")}@company.com`,
-      };
-    }
-
-    // Create new task
-    const newTask = {
-      id: tasks.length + 1,
-      name: taskForm.name,
-      description: taskForm.description || "No description provided",
-      assignee: assignee,
-      function: "General",
-      details: "Task",
-      status: "To Do",
-      dueDate:
-        taskForm.dueDate ||
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
-      createdAt: new Date().toISOString().split("T")[0],
-      priority: taskForm.priority,
-    };
-
-    // Add task to list
-    setTasks((prev) => [...prev, newTask]);
-
-    // Reset form and close modal
-    setTaskForm({
-      name: "",
-      description: "",
-      assignee: "",
-      customAssignee: "",
-      priority: "Medium",
-      dueDate: "",
-    });
-    setShowAddTaskModal(false);
-  };
-
-  const closeModal = () => {
-    setShowAddTaskModal(false);
-    setTaskForm({
-      name: "",
-      description: "",
-      assignee: "",
-      customAssignee: "",
-      priority: "Medium",
-      dueDate: "",
-    });
-  };
 
   return (
     <>
@@ -877,7 +991,7 @@ const ProjectTab = ({
                                   style={{ zIndex: 10 - index }}
                                 >
                                   <LetterAvatar
-                                    name={assignee.name}
+                                    name={getDisplayName(assignee)}
                                     size={32}
                                   />
                                 </div>

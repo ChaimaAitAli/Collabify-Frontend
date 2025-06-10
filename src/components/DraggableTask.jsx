@@ -1,6 +1,47 @@
 import getPriorityBadge from "./getPriorityBadge";
 import LetterAvatar from "./LetterAvatar";
+
 const DraggableTask = ({ task, handleDragStart }) => {
+  const getDisplayName = (user) => {
+    if (!user) return "Unknown User";
+
+    const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim();
+    return fullName || user.email?.split("@")[0] || "Unknown User";
+  };
+
+  const getDisplayEmail = (user) => {
+    if (!user || !user.email) return "No email";
+    return user.email;
+  };
+
+  const renderAssigneeSection = () => {
+    if (!task.assignee) {
+      return (
+        <div className="d-flex align-items-center">
+          <LetterAvatar name="Unassigned" size="sm" />
+          <div className="ms-2 d-flex flex-column justify-content-center">
+            <h6 className="mb-0 text-sm font-weight-semibold">Unassigned</h6>
+            <p className="text-sm text-secondary mb-0">No assignee</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="d-flex align-items-center">
+        <LetterAvatar name={getDisplayName(task.assignee)} size="sm" />
+        <div className="ms-2 d-flex flex-column justify-content-center">
+          <h6 className="mb-0 text-sm font-weight-semibold">
+            {getDisplayName(task.assignee)}
+          </h6>
+          <p className="text-sm text-secondary mb-0">
+            {getDisplayEmail(task.assignee)}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       key={task.id}
@@ -27,15 +68,7 @@ const DraggableTask = ({ task, handleDragStart }) => {
           {getPriorityBadge(task.priority)}
         </h6>
         <div className="d-flex align-items-center justify-content-between">
-          <div className="d-flex align-items-center">
-            <LetterAvatar name={task.assignee.name} size="sm" />
-            <div className="ms-2">
-              <small className="text-dark fw-semibold d-block">
-                {task.assignee.name}
-              </small>
-              <small className="text-muted">{task.function}</small>
-            </div>
-          </div>
+          {renderAssigneeSection()}
           <small className="text-muted">{task.dueDate}</small>
         </div>
       </div>
