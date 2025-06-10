@@ -1,20 +1,62 @@
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "@/assets/css/nucleo-icons.css";
 import "@/assets/css/nucleo-svg.css";
 import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
 import logo from "@/assets/img/CollabifyMauve-removebg.png";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 
+import { projectAPI } from "@/api/api"; // Adjust the import path as needed
+
 const SideBar = ({ activeTab, setActiveTab }) => {
   const { projectsOpen, setProjectsOpen } = useSidebar();
+  const [userProjects, setUserProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const userProjects = [
-    { id: 1, name: "Website Redesign" },
-    { id: 2, name: "Mobile App" },
-    { id: 3, name: "Marketing Campaign" },
-  ];
+  // Fetch user's projects on component mount
+  useEffect(() => {
+    const fetchUserProjects = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch user's projects - only projects where user is member or lead
+        const projects = await projectAPI.getUserProjects();
+
+        // Transform the data to match your existing structure
+        const transformedProjects = projects.map((project) => ({
+          id: project.id,
+          name: project.title, // assuming your Project entity has a 'title' field
+        }));
+
+        setUserProjects(transformedProjects);
+      } catch (err) {
+        console.error("Failed to fetch user projects:", err);
+        setError("Failed to load projects");
+        // Fallback to empty array on error
+        setUserProjects([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProjects();
+  }, []);
+
+  const refetchProjects = async () => {
+    try {
+      const projects = await projectAPI.getUserProjects();
+      const transformedProjects = projects.map((project) => ({
+        id: project.id,
+        name: project.title,
+      }));
+      setUserProjects(transformedProjects);
+    } catch (err) {
+      console.error("Failed to refetch projects:", err);
+    }
+  };
 
   // Toggle projects dropdown
   const toggleProjects = (e) => {
