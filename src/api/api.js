@@ -65,6 +65,11 @@ export const userAPI = {
   getUserById: async (userId) => {
     return apiRequest(`/api/users/${userId}`);
   },
+
+  // Add this new function
+  getAllUsers: async () => {
+    return apiRequest("/api/users/");
+  },
 };
 
 // Projects API functions (example)

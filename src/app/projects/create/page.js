@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import "@/assets/css/nucleo-icons.css";
 import "@/assets/css/nucleo-svg.css";
 import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
 import LetterAvatar from "@/components/LetterAvatar";
+import { projectAPI, userAPI } from "@/api/api";
 
 export default function CreateProject() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     projectName: "",
     description: "",
@@ -17,71 +20,70 @@ export default function CreateProject() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMembersDropdown, setShowMembersDropdown] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [availableMembers, setAvailableMembers] = useState([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
   const dropdownContentRef = useRef(null);
 
-  // Sample members data
-  const availableMembers = [
-    { id: 1, name: "John Smith", email: "john@example.com", role: "Developer" },
-    {
-      id: 2,
-      name: "Sarah Johnson",
-      email: "sarah@example.com",
-      role: "Designer",
-    },
-    {
-      id: 3,
-      name: "Mike Davis",
-      email: "mike@example.com",
-      role: "Product Manager",
-    },
-    {
-      id: 4,
-      name: "Emily Brown",
-      email: "emily@example.com",
-      role: "QA Engineer",
-    },
-    { id: 5, name: "David Wilson", email: "david@example.com", role: "DevOps" },
-    {
-      id: 6,
-      name: "Lisa Garcia",
-      email: "lisa@example.com",
-      role: "UX Researcher",
-    },
-    {
-      id: 7,
-      name: "Alex Thompson",
-      email: "alex@example.com",
-      role: "Backend Developer",
-    },
-    {
-      id: 8,
-      name: "Maria Rodriguez",
-      email: "maria@example.com",
-      role: "Frontend Developer",
-    },
-    {
-      id: 9,
-      name: "James Wilson",
-      email: "james@example.com",
-      role: "Data Analyst",
-    },
-    {
-      id: 10,
-      name: "Jennifer Lee",
-      email: "jennifer@example.com",
-      role: "Marketing Manager",
-    },
-  ];
+  // Helper function to get display name from user object
+  const getDisplayName = (user) => {
+    if (!user) return "Unknown User";
 
-  // Filter members based on search query
-  const filteredMembers = availableMembers.filter(
-    (member) =>
-      member.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
-      member.email.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
-      member.role.toLowerCase().includes(memberSearchQuery.toLowerCase())
-  );
+    // Based on your User entity: firstname, lastname, email
+    const fullName = `${user.firstname || ""} ${user.lastname || ""}`.trim();
+
+    return fullName || user.email?.split("@")[0] || "Unknown User";
+  };
+
+  // Filter members based on search query and exclude current user
+  const filteredMembers = availableMembers.filter((member) => {
+    // Exclude current user from the list
+    if (currentUser && member.id === currentUser.id) {
+      return false;
+    }
+
+    const searchLower = memberSearchQuery.toLowerCase();
+    const displayName = getDisplayName(member);
+    const nameMatch = displayName.toLowerCase().includes(searchLower);
+    const emailMatch = member.email?.toLowerCase().includes(searchLower);
+    const roleMatch = member.role?.toLowerCase().includes(searchLower);
+
+    return nameMatch || emailMatch || roleMatch;
+  });
+
+  // Fetch current user and available members on component mount
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        // Fetch current user
+        const user = await userAPI.getCurrentUser();
+        setCurrentUser(user);
+      } catch (error) {
+        console.error("Error fetching current user:", error);
+        setErrors((prev) => ({ ...prev, user: "Failed to load user data" }));
+      }
+    };
+
+    fetchInitialData();
+  }, []);
+
+  // Fetch all users when dropdown is first opened
+  const fetchAllUsers = async () => {
+    if (availableMembers.length > 0) return; // Already loaded
+
+    setIsLoadingMembers(true);
+    try {
+      const users = await userAPI.getAllUsers();
+      setAvailableMembers(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      setErrors((prev) => ({ ...prev, members: "Failed to load users" }));
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -151,7 +153,10 @@ export default function CreateProject() {
       } else {
         return {
           ...prev,
-          members: [...prev.members, member],
+          members: [
+            ...prev.members,
+            { ...member, name: getDisplayName(member) },
+          ],
         };
       }
     });
@@ -165,6 +170,10 @@ export default function CreateProject() {
   };
 
   const handleDropdownToggle = () => {
+    if (!showMembersDropdown) {
+      // Fetch users when opening dropdown for the first time
+      fetchAllUsers();
+    }
     setShowMembersDropdown(!showMembersDropdown);
     if (!showMembersDropdown) {
       setMemberSearchQuery("");
@@ -188,13 +197,44 @@ export default function CreateProject() {
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        // Simulate API call
-        console.log("Creating project:", formData);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        // Optionally redirect or show success
+        // Prepare project data for API
+        const projectData = {
+          title: formData.projectName.trim(),
+          description: formData.description.trim() || undefined,
+          // Send only member IDs to the backend
+          memberIds: formData.members.map((member) => member.id),
+        };
+
+        console.log("Creating project:", projectData);
+
+        // Call the API to create the project
+        const createdProject = await projectAPI.createProject(projectData);
+
+        console.log("Project created successfully:", createdProject);
+
+        // Reset form
+        setFormData({
+          projectName: "",
+          description: "",
+          members: [],
+        });
+
+        // Show success message or redirect
+        // You can add a success state here if needed
+        alert("Project created successfully!");
+
+        // Optional: Redirect to project page or projects list
+        if (createdProject.id) {
+          router.push(`/projects/${createdProject.id}`);
+        } else {
+          router.push("/projects");
+        }
       } catch (error) {
         console.error("Error creating project:", error);
-        setErrors({ form: "Failed to create the project. Please try again." });
+        setErrors({
+          form:
+            error.message || "Failed to create the project. Please try again.",
+        });
       } finally {
         setIsSubmitting(false);
       }
@@ -245,6 +285,7 @@ export default function CreateProject() {
                           placeholder="Enter project name"
                           value={formData.projectName}
                           onChange={handleChange}
+                          disabled={isSubmitting}
                         />
                         {errors.projectName && (
                           <div className="invalid-feedback">
@@ -263,6 +304,7 @@ export default function CreateProject() {
                           rows="3"
                           value={formData.description}
                           onChange={handleChange}
+                          disabled={isSubmitting}
                         />
                       </div>
 
@@ -293,7 +335,7 @@ export default function CreateProject() {
                                     }}
                                   >
                                     <span className="text-white me-2 fw-medium">
-                                      {member.name}
+                                      {member.name || getDisplayName(member)}
                                     </span>
                                     <button
                                       type="button"
@@ -302,6 +344,7 @@ export default function CreateProject() {
                                         e.stopPropagation();
                                         removeMember(member.id);
                                       }}
+                                      disabled={isSubmitting}
                                       style={{
                                         fontSize: "10px",
                                         width: "12px",
@@ -393,7 +436,20 @@ export default function CreateProject() {
                                   overflowY: "auto",
                                 }}
                               >
-                                {filteredMembers.length === 0 ? (
+                                {isLoadingMembers ? (
+                                  <div className="p-4 text-center">
+                                    <div
+                                      className="spinner-border spinner-border-sm me-2"
+                                      role="status"
+                                    ></div>
+                                    Loading users...
+                                  </div>
+                                ) : errors.members ? (
+                                  <div className="p-4 text-center text-danger">
+                                    <i className="fas fa-exclamation-triangle me-2"></i>
+                                    {errors.members}
+                                  </div>
+                                ) : filteredMembers.length === 0 ? (
                                   <div className="p-4 text-center text-muted">
                                     <svg
                                       width="48"
@@ -413,7 +469,9 @@ export default function CreateProject() {
                                     </svg>
                                     <div>No members found</div>
                                     <small className="text-muted">
-                                      Try adjusting your search terms
+                                      {memberSearchQuery
+                                        ? `Try adjusting your search terms`
+                                        : `No users available`}
                                     </small>
                                   </div>
                                 ) : (
@@ -423,6 +481,7 @@ export default function CreateProject() {
                                     );
                                     const isLastItem =
                                       index === filteredMembers.length - 1;
+                                    const displayName = getDisplayName(member);
 
                                     return (
                                       <div
@@ -454,7 +513,7 @@ export default function CreateProject() {
                                       >
                                         <div className="me-3">
                                           <LetterAvatar
-                                            name={member.name}
+                                            name={displayName}
                                             size="md"
                                           />
                                         </div>
@@ -463,7 +522,7 @@ export default function CreateProject() {
                                             className="fw-semibold text-dark mb-1"
                                             style={{ fontSize: "0.9rem" }}
                                           >
-                                            {member.name}
+                                            {displayName}
                                           </div>
                                           <div
                                             className="text-muted mb-1"
@@ -471,14 +530,16 @@ export default function CreateProject() {
                                           >
                                             {member.email}
                                           </div>
-                                          <div className="d-inline-block">
-                                            <span
-                                              className="badge bg-light text-dark border"
-                                              style={{ fontSize: "0.7rem" }}
-                                            >
-                                              {member.role}
-                                            </span>
-                                          </div>
+                                          {member.role && (
+                                            <div className="d-inline-block">
+                                              <span
+                                                className="badge bg-light text-dark border"
+                                                style={{ fontSize: "0.7rem" }}
+                                              >
+                                                {member.role}
+                                              </span>
+                                            </div>
+                                          )}
                                         </div>
                                         <div className="ms-2">
                                           {isSelected ? (
@@ -530,7 +591,18 @@ export default function CreateProject() {
                           className="btn btn-dark w-100 mt-4 mb-3"
                           disabled={isSubmitting}
                         >
-                          {isSubmitting ? "Creating..." : "Create Project"}
+                          {isSubmitting ? (
+                            <>
+                              <span
+                                className="spinner-border spinner-border-sm me-2"
+                                role="status"
+                                aria-hidden="true"
+                              ></span>
+                              Creating...
+                            </>
+                          ) : (
+                            "Create Project"
+                          )}
                         </button>
                       </div>
                     </form>

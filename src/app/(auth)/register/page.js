@@ -43,6 +43,8 @@ export default function Register() {
     setError("");
     setSuccess("");
 
+    localStorage.removeItem("authToken");
+
     if (!formData.agreeTerms) {
       setError("Please agree to the Terms and Conditions");
       setLoading(false);
