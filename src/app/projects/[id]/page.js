@@ -91,9 +91,9 @@ export default function ProjectPage() {
   // Note: Your backend uses 'title' but frontend might expect 'name'
   const formattedProject = {
     id: project.id,
-    name: project.title, // Map 'title' from backend to 'name' for frontend
+    name: project.title,
     description: project.description,
-    lead: project.lead,
+    lead: project.leadId,
     members: project.members || [],
     tasks: project.tasks || [],
   };

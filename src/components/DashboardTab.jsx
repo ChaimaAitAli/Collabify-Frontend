@@ -2,8 +2,10 @@ import Image from "next/image";
 import "@/assets/css/nucleo-icons.css";
 import "@/assets/css/nucleo-svg.css";
 import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
+import { projectAPI, taskAPI } from "@/api/api";
 import logo from "@/assets/img/CollabifyMauve-removebg.png";
 import Navbar from "./Navbar";
+import { useState, useEffect } from "react";
 
 const DashboardTab = ({ user }) => {
   const styles = {
@@ -13,51 +15,194 @@ const DashboardTab = ({ user }) => {
     cardHeaderGradient: "linear-gradient(195deg, #774dd3, #673ab7)",
   };
 
-  const recentActivity = [
-    {
-      action: "Task completed",
-      project: "Website Redesign",
-      time: "2 hours ago",
-      type: "success",
-    },
-    {
-      action: "New comment added",
-      project: "Mobile App",
-      time: "4 hours ago",
-      type: "info",
-    },
-    {
-      action: "Deadline approaching",
-      project: "Marketing Campaign",
-      time: "1 day ago",
-      type: "warning",
-    },
-    {
-      action: "Project milestone reached",
-      project: "API Development",
-      time: "2 days ago",
-      type: "success",
-    },
-  ];
+  const [stats, setStats] = useState({
+    totalProjects: 0,
+    todoTasks: 0,
+    inProgressTasks: 0,
+    doneTasks: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState([]);
 
-  const upcomingDeadlines = [
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch user's projects
+        const projectsIds = await projectAPI.getProjectIdsByUserId(user.id);
+        const totalProjects = projectsIds.length;
+
+        // Fetch all projects data to get titles
+        const projectsData = {};
+        for (const projectId of projectsIds) {
+          const project = await projectAPI.getProjectById(projectId);
+          projectsData[projectId] = project;
+        }
+
+        // Fetch all tasks across all projects
+        let allTasks = [];
+        for (const projectId of projectsIds) {
+          const tasks = await projectAPI.getProjectTasks(projectId);
+          // Enhance tasks with project information
+          const enhancedTasks = tasks.map((task) => ({
+            ...task,
+            project: projectsData[projectId],
+          }));
+          allTasks = [...allTasks, ...enhancedTasks];
+        }
+
+        // Filter tasks by status and current user as assignee
+        const userTasks = allTasks.filter(
+          (task) => task.assigneeId === user.id
+        );
+
+        const todoTasks = userTasks.filter(
+          (task) => task.status === "TO_DO"
+        ).length;
+        const inProgressTasks = userTasks.filter(
+          (task) => task.status === "IN_PROGRESS"
+        ).length;
+        const doneTasks = userTasks.filter(
+          (task) => task.status === "DONE"
+        ).length;
+
+        // Set stats
+        setStats({
+          totalProjects,
+          todoTasks,
+          inProgressTasks,
+          doneTasks,
+        });
+
+        // Generate recent activity
+        const generatedActivity = userTasks
+          .filter((task) => task.status === "DONE")
+          .slice(0, 4)
+          .map((task) => ({
+            action: "Task completed",
+            project: task.project.title,
+            time: "recently",
+            type: "success",
+          }));
+
+        setRecentActivity(
+          generatedActivity.length > 0
+            ? generatedActivity
+            : [
+                {
+                  action: "No recent activity",
+                  project: "",
+                  time: "",
+                  type: "info",
+                },
+              ]
+        );
+
+        // Generate upcoming deadlines
+        const generatedDeadlines = userTasks
+          .filter((task) => task.status !== "DONE")
+          .slice(0, 3)
+          .map((task) => ({
+            task: task.title,
+            project: task.project.title,
+            dueDate: "soon",
+            priority: task.priority || "medium",
+          }));
+
+        setUpcomingDeadlines(
+          generatedDeadlines.length > 0
+            ? generatedDeadlines
+            : [
+                {
+                  task: "No upcoming deadlines",
+                  project: "",
+                  dueDate: "",
+                  priority: "medium",
+                },
+              ]
+        );
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+        setStats({
+          totalProjects: 0,
+          todoTasks: 0,
+          inProgressTasks: 0,
+          doneTasks: 0,
+        });
+        setRecentActivity([
+          {
+            action: "Failed to load activity",
+            project: "",
+            time: "",
+            type: "warning",
+          },
+        ]);
+        setUpcomingDeadlines([
+          {
+            task: "Failed to load deadlines",
+            project: "",
+            dueDate: "",
+            priority: "medium",
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
+
+  const statsData = [
     {
-      task: "UI/UX Design Review",
-      project: "Website Redesign",
-      dueDate: "Today",
-      priority: "high",
+      title: "Total Projects",
+      value: stats.totalProjects,
+      icon: (
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z" />
+        </svg>
+      ),
+      color: styles.brandColor,
+      change: loading ? "Loading..." : "+0 this month",
     },
     {
-      task: "Database Migration",
-      project: "Backend Upgrade",
-      dueDate: "Tomorrow",
-      priority: "medium",
+      title: "Tasks to be done",
+      value: stats.todoTasks,
+      icon: (
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
+        </svg>
+      ),
+      color: "#f59e0b",
+      change: loading
+        ? "Loading..."
+        : `${Math.min(3, stats.todoTasks)} due soon`,
     },
     {
-      task: "Content Creation",
-      project: "Marketing Campaign",
-      dueDate: "3 days",
-      priority: "low",
+      title: "Tasks in Progress",
+      value: stats.inProgressTasks,
+      icon: (
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
+        </svg>
+      ),
+      color: "#06b6d4",
+      change: loading ? "Loading..." : "On track",
+    },
+    {
+      title: "Completed Tasks",
+      value: stats.doneTasks,
+      icon: (
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+        </svg>
+      ),
+      color: "#22c55e",
+      change: loading ? "Loading..." : "+0 this week",
     },
   ];
 
@@ -66,7 +211,7 @@ const DashboardTab = ({ user }) => {
       <div className="container-fluid py-4 px-5">
         <div className="row align-items-center mb-4">
           <div className="col-md-8">
-            <h3 className="fw-bold text-dark mb-1">Hello, {user.firstName}</h3>
+            <h3 className="fw-bold text-dark mb-1">Hello, {user.firstname}</h3>
             <p className="text-muted mb-0">Let's get some work done today 🚀</p>
           </div>
           <div className="col-md-4 d-flex justify-content-md-end gap-2 mt-3 mt-md-0">
@@ -111,79 +256,16 @@ const DashboardTab = ({ user }) => {
         <div className="container py-3">
           {/* Statistics Cards */}
           <div className="row g-4 mb-4">
-            {[
-              {
-                title: "Total Projects",
-                value: 10,
-                icon: (
-                  <svg
-                    width="18"
-                    height="18"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z" />
-                  </svg>
-                ),
-                color: styles.brandColor,
-                change: "+2 this month",
-              },
-              {
-                title: "Tasks to be done",
-                value: 9,
-                icon: (
-                  <svg
-                    width="18"
-                    height="18"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
-                  </svg>
-                ),
-                color: "#f59e0b",
-                change: "3 due today",
-              },
-              {
-                title: "Tasks in Progress",
-                value: 2,
-                icon: (
-                  <svg
-                    width="18"
-                    height="18"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
-                  </svg>
-                ),
-                color: "#06b6d4",
-                change: "On track",
-              },
-              {
-                title: "Completed Tasks",
-                value: 24,
-                icon: (
-                  <svg
-                    width="18"
-                    height="18"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                  </svg>
-                ),
-                color: "#22c55e",
-                change: "+12 this week",
-              },
-            ].map((item, index) => (
+            {statsData.map((item, index) => (
               <div className="col-lg-3 col-sm-6" key={index}>
                 <div className="card h-100 border-0 shadow-sm hover-shadow-lg transition-all">
                   <div className="card-body p-4">
                     <div className="d-flex align-items-center justify-content-between">
                       <div>
                         <p className="text-sm text-muted mb-1">{item.title}</p>
-                        <h4 className="fw-bold mb-1">{item.value}</h4>
+                        <h4 className="fw-bold mb-1">
+                          {loading ? "..." : item.value}
+                        </h4>
                         <small className="text-muted">{item.change}</small>
                       </div>
                       <div
@@ -310,13 +392,15 @@ const DashboardTab = ({ user }) => {
                       </div>
                       <div className="text-end">
                         <span
-                          className={`badge badge-sm bg-${
-                            deadline.priority === "high"
-                              ? "danger"
-                              : deadline.priority === "medium"
-                              ? "warning"
-                              : "success"
-                          }`}
+                          className="badge badge-sm"
+                          style={{
+                            backgroundColor:
+                              deadline.priority === "high"
+                                ? "red"
+                                : deadline.priority === "medium"
+                                ? "yellow"
+                                : "green",
+                          }}
                         >
                           {deadline.dueDate}
                         </span>
@@ -326,98 +410,6 @@ const DashboardTab = ({ user }) => {
                   <button className="btn btn-link text-muted p-0 text-sm">
                     View all deadlines
                   </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Progress Overview */}
-          <div className="row mt-4">
-            <div className="col-12">
-              <div className="card border-0 shadow-sm">
-                <div className="card-header pb-0">
-                  <h6 className="mb-0">Team Performance Overview</h6>
-                </div>
-                <div className="card-body">
-                  <div className="row">
-                    <div className="col-lg-8">
-                      <div
-                        className="chart-container"
-                        style={{
-                          height: "200px",
-                          background: "#f8f9fa",
-                          borderRadius: "8px",
-                        }}
-                      >
-                        <div className="d-flex align-items-center justify-content-center h-100">
-                          <div className="text-center">
-                            <svg
-                              width="48"
-                              height="48"
-                              fill="currentColor"
-                              viewBox="0 0 24 24"
-                              className="text-muted"
-                            >
-                              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z" />
-                            </svg>
-                            <p className="text-muted mt-2">
-                              Performance chart will be displayed here
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-lg-4">
-                      <div className="h-100 d-flex flex-column justify-content-center">
-                        <div className="mb-3">
-                          <small className="text-muted">
-                            Team Productivity
-                          </small>
-                          <div
-                            className="progress mt-1"
-                            style={{ height: "6px" }}
-                          >
-                            <div
-                              className="progress-bar"
-                              style={{
-                                width: "85%",
-                                background: styles.brandGradient,
-                              }}
-                            ></div>
-                          </div>
-                          <small className="text-muted">85% this week</small>
-                        </div>
-                        <div className="mb-3">
-                          <small className="text-muted">
-                            Project Completion Rate
-                          </small>
-                          <div
-                            className="progress mt-1"
-                            style={{ height: "6px" }}
-                          >
-                            <div
-                              className="progress-bar bg-success"
-                              style={{ width: "92%" }}
-                            ></div>
-                          </div>
-                          <small className="text-muted">92% success rate</small>
-                        </div>
-                        <div>
-                          <small className="text-muted">On-Time Delivery</small>
-                          <div
-                            className="progress mt-1"
-                            style={{ height: "6px" }}
-                          >
-                            <div
-                              className="progress-bar bg-info"
-                              style={{ width: "78%" }}
-                            ></div>
-                          </div>
-                          <small className="text-muted">78% on schedule</small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

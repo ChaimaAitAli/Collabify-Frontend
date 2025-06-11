@@ -1,6 +1,9 @@
 const getPriorityBadge = (priority) => {
-  switch (priority) {
-    case "High":
+  // Convert to lowercase for case-insensitive comparison
+  const normalizedPriority = priority?.toLowerCase();
+
+  switch (normalizedPriority) {
+    case "high":
       return (
         <span
           className="badge text-white ms-2"
@@ -13,7 +16,7 @@ const getPriorityBadge = (priority) => {
           High
         </span>
       );
-    case "Medium":
+    case "medium":
       return (
         <span
           className="badge text-white ms-2"
@@ -26,7 +29,7 @@ const getPriorityBadge = (priority) => {
           Medium
         </span>
       );
-    case "Low":
+    case "low":
       return (
         <span
           className="badge text-white ms-2"
@@ -43,5 +46,4 @@ const getPriorityBadge = (priority) => {
       return null;
   }
 };
-
 export default getPriorityBadge;

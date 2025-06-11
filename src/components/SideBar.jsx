@@ -7,7 +7,7 @@ import "@/assets/css/corporate-ui-dashboard.css?v=1.0.0";
 import logo from "@/assets/img/CollabifyMauve-removebg.png";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 
-import { projectAPI } from "@/api/api";
+import { projectAPI, userAPI } from "@/api/api";
 
 const SideBar = ({ activeTab }) => {
   const { projectsOpen, setProjectsOpen } = useSidebar();
@@ -22,13 +22,47 @@ const SideBar = ({ activeTab }) => {
         setLoading(true);
         setError(null);
 
-        // Fetch user's projects - only projects where user is member or lead
-        const projects = await projectAPI.getUserProjects();
+        // First, get the current user to get their ID
+        const currentUser = await userAPI.getCurrentUser();
+
+        if (!currentUser || !currentUser.id) {
+          console.warn("No current user found or user has no ID");
+          setUserProjects([]);
+          return;
+        }
+
+        // Then get the project IDs for this user
+        const projectIds = await projectAPI.getProjectIdsByUserId(
+          currentUser.id
+        );
+
+        // Check if projectIds is null, undefined, or not an array
+        if (!projectIds || !Array.isArray(projectIds)) {
+          console.warn(
+            "Project IDs data is null, undefined, or not an array:",
+            projectIds
+          );
+          setUserProjects([]);
+          return;
+        }
+
+        // If no projects found, set empty array
+        if (projectIds.length === 0) {
+          setUserProjects([]);
+          return;
+        }
+
+        // Fetch project details for each ID to get the titles
+        const projectPromises = projectIds.map((projectId) =>
+          projectAPI.getProjectById(projectId)
+        );
+
+        const projects = await Promise.all(projectPromises);
 
         // Transform the data to match your existing structure
         const transformedProjects = projects.map((project) => ({
-          id: project.id,
-          name: project.title, // assuming your Project entity has a 'title' field
+          id: project?.id,
+          name: project?.title || "Untitled Project",
         }));
 
         setUserProjects(transformedProjects);
@@ -48,13 +82,25 @@ const SideBar = ({ activeTab }) => {
   const refetchProjects = async () => {
     try {
       const projects = await projectAPI.getUserProjects();
+
+      // Add null check here too
+      if (!projects || !Array.isArray(projects)) {
+        console.warn(
+          "Projects data is null, undefined, or not an array during refetch:",
+          projects
+        );
+        setUserProjects([]);
+        return;
+      }
+
       const transformedProjects = projects.map((project) => ({
-        id: project.id,
-        name: project.title,
+        id: project?.id,
+        name: project?.title || "Untitled Project",
       }));
       setUserProjects(transformedProjects);
     } catch (err) {
       console.error("Failed to refetch projects:", err);
+      setUserProjects([]);
     }
   };
 
@@ -233,34 +279,53 @@ const SideBar = ({ activeTab }) => {
                 }}
               >
                 <ul className="list-unstyled ps-4 pt-1 pb-1">
-                  {userProjects.map((project) => (
-                    <li key={project.id} className="mb-1">
-                      <Link
-                        href={`/projects/${project.id}`}
-                        className="text-sm py-2 px-2 d-block text-white opacity-80 hover:opacity-100 rounded hover:bg-gray-700"
-                        style={{
-                          transition: "all 0.2s ease",
-                          textDecoration: "none",
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.backgroundColor = "#774dd3";
-
-                          e.currentTarget.style.opacity = "1";
-                        }}
-                        onMouseOut={(e) => {
-                          if (activeTab !== `project-${project.id}`) {
-                            e.currentTarget.style.backgroundColor = "";
-                            e.currentTarget.style.opacity = "0.8";
-                          } else {
-                            e.currentTarget.style.backgroundColor =
-                              "rgba(55, 65, 81, 1)"; // bg-gray-700
-                          }
-                        }}
-                      >
-                        {project.name}
-                      </Link>
+                  {loading ? (
+                    <li className="mb-1">
+                      <div className="text-sm py-2 px-2 text-white opacity-80">
+                        Loading projects...
+                      </div>
                     </li>
-                  ))}
+                  ) : error ? (
+                    <li className="mb-1">
+                      <div className="text-sm py-2 px-2 text-red-400">
+                        {error}
+                      </div>
+                    </li>
+                  ) : userProjects.length === 0 ? (
+                    <li className="mb-1">
+                      <div className="text-sm py-2 px-2 text-white opacity-60">
+                        No projects found
+                      </div>
+                    </li>
+                  ) : (
+                    userProjects.map((project) => (
+                      <li key={project.id} className="mb-1">
+                        <Link
+                          href={`/projects/${project.id}`}
+                          className="text-sm py-2 px-2 d-block text-white opacity-80 hover:opacity-100 rounded hover:bg-gray-700"
+                          style={{
+                            transition: "all 0.2s ease",
+                            textDecoration: "none",
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = "#774dd3";
+                            e.currentTarget.style.opacity = "1";
+                          }}
+                          onMouseOut={(e) => {
+                            if (activeTab !== `project-${project.id}`) {
+                              e.currentTarget.style.backgroundColor = "";
+                              e.currentTarget.style.opacity = "0.8";
+                            } else {
+                              e.currentTarget.style.backgroundColor =
+                                "rgba(55, 65, 81, 1)"; // bg-gray-700
+                            }
+                          }}
+                        >
+                          {project.name}
+                        </Link>
+                      </li>
+                    ))
+                  )}
                   <li>
                     <Link
                       href="/projects/create"

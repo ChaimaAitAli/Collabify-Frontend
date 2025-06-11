@@ -20,7 +20,7 @@ export default function CreateProject() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMembersDropdown, setShowMembersDropdown] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
-  const [availableMembers, setAvailableMembers] = useState([]);
+  const [availableMembers, setAvailableMembers] = useState(null); // Changed to null initially
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const dropdownRef = useRef(null);
@@ -38,20 +38,24 @@ export default function CreateProject() {
   };
 
   // Filter members based on search query and exclude current user
-  const filteredMembers = availableMembers.filter((member) => {
-    // Exclude current user from the list
-    if (currentUser && member.id === currentUser.id) {
-      return false;
-    }
+  const filteredMembers =
+    availableMembers?.filter((member) => {
+      // Skip if member is null
+      if (!member) return false;
 
-    const searchLower = memberSearchQuery.toLowerCase();
-    const displayName = getDisplayName(member);
-    const nameMatch = displayName.toLowerCase().includes(searchLower);
-    const emailMatch = member.email?.toLowerCase().includes(searchLower);
-    const roleMatch = member.role?.toLowerCase().includes(searchLower);
+      // Exclude current user from the list
+      if (currentUser && member.id === currentUser.id) {
+        return false;
+      }
 
-    return nameMatch || emailMatch || roleMatch;
-  });
+      const searchLower = memberSearchQuery.toLowerCase();
+      const displayName = getDisplayName(member);
+      const nameMatch = displayName.toLowerCase().includes(searchLower);
+      const emailMatch = member.email?.toLowerCase().includes(searchLower);
+      const roleMatch = member.role?.toLowerCase().includes(searchLower);
+
+      return nameMatch || emailMatch || roleMatch;
+    }) || [];
 
   // Fetch current user and available members on component mount
   useEffect(() => {
@@ -71,15 +75,16 @@ export default function CreateProject() {
 
   // Fetch all users when dropdown is first opened
   const fetchAllUsers = async () => {
-    if (availableMembers.length > 0) return; // Already loaded
+    if (availableMembers !== null) return; // Already loaded or attempted to load
 
     setIsLoadingMembers(true);
     try {
       const users = await userAPI.getAllUsers();
-      setAvailableMembers(users);
+      setAvailableMembers(users || []); // Ensure we set an array even if null is returned
     } catch (error) {
       console.error("Error fetching users:", error);
       setErrors((prev) => ({ ...prev, members: "Failed to load users" }));
+      setAvailableMembers([]); // Set to empty array on error
     } finally {
       setIsLoadingMembers(false);
     }
@@ -143,12 +148,14 @@ export default function CreateProject() {
   };
 
   const handleMemberToggle = (member) => {
+    if (!member) return; // Skip if member is null
+
     setFormData((prev) => {
-      const isSelected = prev.members.some((m) => m.id === member.id);
+      const isSelected = prev.members.some((m) => m?.id === member.id);
       if (isSelected) {
         return {
           ...prev,
-          members: prev.members.filter((m) => m.id !== member.id),
+          members: prev.members.filter((m) => m?.id !== member.id),
         };
       } else {
         return {
@@ -165,7 +172,7 @@ export default function CreateProject() {
   const removeMember = (memberId) => {
     setFormData((prev) => ({
       ...prev,
-      members: prev.members.filter((m) => m.id !== memberId),
+      members: prev.members.filter((m) => m?.id !== memberId),
     }));
   };
 
@@ -202,7 +209,9 @@ export default function CreateProject() {
           title: formData.projectName.trim(),
           description: formData.description.trim() || undefined,
           // Send only member IDs to the backend
-          memberIds: formData.members.map((member) => member.id),
+          memberIds: formData.members
+            .filter((m) => m)
+            .map((member) => member.id), // Filter out any null members
         };
 
         console.log("Creating project:", projectData);
@@ -220,7 +229,6 @@ export default function CreateProject() {
         });
 
         // Show success message or redirect
-        // You can add a success state here if needed
         alert("Project created successfully!");
 
         // Optional: Redirect to project page or projects list
@@ -323,36 +331,43 @@ export default function CreateProject() {
                                   Select team members (optional)
                                 </span>
                               ) : (
-                                formData.members.map((member) => (
-                                  <div
-                                    key={member.id}
-                                    className="d-flex align-items-center px-3 py-1 me-2 mb-1"
-                                    style={{
-                                      fontSize: "0.875rem",
-                                      fontWeight: "bold",
-                                      borderRadius: "15px",
-                                      backgroundColor: "#CDA3FF",
-                                    }}
-                                  >
-                                    <span className="text-white me-2 fw-medium">
-                                      {member.name || getDisplayName(member)}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="btn-close btn-close-white"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeMember(member.id);
-                                      }}
-                                      disabled={isSubmitting}
-                                      style={{
-                                        fontSize: "10px",
-                                        width: "12px",
-                                        height: "12px",
-                                      }}
-                                    ></button>
-                                  </div>
-                                ))
+                                formData.members
+                                  .filter((m) => m)
+                                  .map(
+                                    (
+                                      member // Filter out null members
+                                    ) => (
+                                      <div
+                                        key={member.id}
+                                        className="d-flex align-items-center px-3 py-1 me-2 mb-1"
+                                        style={{
+                                          fontSize: "0.875rem",
+                                          fontWeight: "bold",
+                                          borderRadius: "15px",
+                                          backgroundColor: "#CDA3FF",
+                                        }}
+                                      >
+                                        <span className="text-white me-2 fw-medium">
+                                          {member.name ||
+                                            getDisplayName(member)}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="btn-close btn-close-white"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeMember(member.id);
+                                          }}
+                                          disabled={isSubmitting}
+                                          style={{
+                                            fontSize: "10px",
+                                            width: "12px",
+                                            height: "12px",
+                                          }}
+                                        ></button>
+                                      </div>
+                                    )
+                                  )
                               )}
                             </div>
                             <svg
@@ -449,6 +464,26 @@ export default function CreateProject() {
                                     <i className="fas fa-exclamation-triangle me-2"></i>
                                     {errors.members}
                                   </div>
+                                ) : availableMembers === null ? (
+                                  <div className="p-4 text-center text-muted">
+                                    <svg
+                                      width="48"
+                                      height="48"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="1"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="mx-auto mb-2 opacity-50"
+                                    >
+                                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                      <circle cx="9" cy="7" r="4"></circle>
+                                      <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                    <div>Click to load members</div>
+                                  </div>
                                 ) : filteredMembers.length === 0 ? (
                                   <div className="p-4 text-center text-muted">
                                     <svg
@@ -476,8 +511,10 @@ export default function CreateProject() {
                                   </div>
                                 ) : (
                                   filteredMembers.map((member, index) => {
+                                    if (!member) return null; // Skip null members
+
                                     const isSelected = formData.members.some(
-                                      (m) => m.id === member.id
+                                      (m) => m?.id === member.id
                                     );
                                     const isLastItem =
                                       index === filteredMembers.length - 1;

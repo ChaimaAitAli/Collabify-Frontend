@@ -13,11 +13,11 @@ async function apiRequest(endpoint, options = {}) {
     },
     ...options,
   };
-
-  // Add Authorization header if token exists
-  const token = localStorage.getItem("authToken");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
 
   try {
@@ -76,7 +76,22 @@ export const userAPI = {
 export const projectAPI = {
   // Get projects for the authenticated user
   getUserProjects: async () => {
-    return apiRequest("/api/projects/my-projects");
+    try {
+      console.log("🔍 Fetching user projects...");
+      const token = tokenManager.getToken();
+      console.log("🔑 Token exists:", !!token);
+
+      if (!token) {
+        throw new Error("No authentication token found");
+      }
+
+      const result = await apiRequest("/api/projects/my-projects");
+      console.log("✅ User projects response:", result);
+      return result;
+    } catch (error) {
+      console.error("❌ Failed to fetch user projects:", error);
+      throw error;
+    }
   },
 
   getAllProjects: async () => {
@@ -122,6 +137,10 @@ export const projectAPI = {
 
   getProjectMembers: async (projectId) => {
     return apiRequest(`/api/projects/${projectId}/members`);
+  },
+
+  getProjectIdsByUserId: async (userId) => {
+    return apiRequest(`/api/projects/user/${userId}/ids`);
   },
 
   getProjectTasks: async (projectId) => {

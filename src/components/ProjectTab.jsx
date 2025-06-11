@@ -4,7 +4,28 @@ import Task from "./Task";
 import LetterAvatar from "./LetterAvatar";
 import DraggableTask from "./DraggableTask";
 import Image from "next/image";
+import UserDropdown from "@/components/UserDropdown";
 import { taskAPI, projectAPI, userAPI } from "@/api/api";
+import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+Chart.register(
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Legend
+);
 
 // Custom styles for brand color
 const styles = {
@@ -23,21 +44,45 @@ const ProjectTab = ({ project }) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [userCache, setUserCache] = useState(new Map());
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Fetch users when component mounts
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+        const users = await userAPI.getAllUsers();
+        setAvailableUsers(users);
+
+        // Fetch current user
+        const user = await userAPI.getCurrentUser();
+        setCurrentUser(user);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        setUsersError("Failed to load users");
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   const [editForm, setEditForm] = useState({
-    assignee: "",
-    customAssignee: "",
+    assigneeId: null,
   });
 
   // Form state
   const [taskForm, setTaskForm] = useState({
     name: "",
     description: "",
-    assignee: "",
-    customAssignee: "",
+    assigneeId: null, // Changed from assignee
     priority: "Medium",
     dueDate: "",
+    projectId: project.id, // Make sure to include projectId
   });
   const getDisplayName = (user) => {
     if (!user) return "Unknown User";
@@ -90,92 +135,124 @@ const ProjectTab = ({ project }) => {
   const availableAssignees = getAvailableAssignees();
 
   // Fetch project tasks when component mounts or project changes
-  useEffect(() => {
-    const fetchTasks = async () => {
-      if (!project?.id) return;
+  const fetchTasks = async () => {
+    if (!project?.id) return;
 
-      try {
-        setLoading(true);
-        setError(null);
-
-        const tasksData = await taskAPI.getTasksByProject(project.id);
-
-        // Transform backend task data to match frontend format
-        const transformedTasks = await Promise.all(
-          tasksData.map(async (task) => {
-            let assignee = null;
-
-            // If task has assigneeId, fetch the assignee data
-            if (task.assigneeId) {
-              try {
-                const assigneeData = await userAPI.getUserById(task.assigneeId);
-                assignee = {
-                  id: assigneeData.id,
-                  firstname: assigneeData.firstname,
-                  lastname: assigneeData.lastname,
-                  email: assigneeData.email,
-                  // Add a computed name field for easier access
-                  name:
-                    `${assigneeData.firstname || ""} ${
-                      assigneeData.lastname || ""
-                    }`.trim() ||
-                    assigneeData.email?.split("@")[0] ||
-                    "Unknown User",
-                };
-              } catch (err) {
-                console.error(
-                  `Failed to fetch assignee ${task.assigneeId}:`,
-                  err
-                );
-                // Set a placeholder assignee to avoid breaking the UI
-                assignee = {
-                  id: task.assigneeId,
-                  firstname: "",
-                  lastname: "",
-                  email: "unknown@example.com",
-                  name: "Unknown User",
-                };
-              }
-            }
-
-            return {
-              id: task.id,
-              name: task.title,
-              description: task.description || "No description provided",
-              assignee: assignee, // This will now contain the full user data
-              assigneeId: task.assigneeId, // Keep this for reference
-              function: "General", // You might want to add this field to your backend
-              details: "Task",
-              status: task.status,
-              dueDate:
-                task.dueDate ||
-                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-                  .toISOString()
-                  .split("T")[0],
-              createdAt: task.createdAt
-                ? new Date(task.createdAt).toISOString().split("T")[0]
-                : new Date().toISOString().split("T")[0],
-              priority: task.priority || "Medium",
-            };
-          })
-        );
-
-        setTasks(transformedTasks);
-      } catch (err) {
-        console.error("Failed to fetch project tasks:", err);
-        setError(err.message || "Failed to load tasks");
-      } finally {
-        setLoading(false);
+    // Helper function to transform priority from uppercase to proper case
+    const transformPriority = (priority) => {
+      if (!priority) return "Medium"; // default fallback
+      const upperPriority = priority.toString().toUpperCase();
+      switch (upperPriority) {
+        case "HIGH":
+          return "High";
+        case "MEDIUM":
+          return "Medium";
+        case "LOW":
+          return "Low";
+        default:
+          return "Medium"; // fallback for unknown values
       }
     };
+
+    // Helper function to transform status from uppercase to proper case
+    const transformStatus = (status) => {
+      if (!status) return "To Do"; // default fallback
+      const upperStatus = status
+        .toString()
+        .toUpperCase()
+        .replace(/[_\s]+/g, "_");
+      switch (upperStatus) {
+        case "TODO":
+        case "TO_DO":
+          return "To Do";
+        case "INPROGRESS":
+        case "IN_PROGRESS":
+          return "In Progress";
+        case "DONE":
+          return "Done";
+        default:
+          return "To Do"; // fallback for unknown values
+      }
+    };
+
+    try {
+      setLoading(true);
+      setError(null);
+      const tasksData = await taskAPI.getTasksByProject(project.id);
+
+      // Transform backend task data to match frontend format
+      const transformedTasks = await Promise.all(
+        tasksData.map(async (task) => {
+          let assignee = null;
+          // If task has assigneeId, fetch the assignee data
+          if (task.assigneeId) {
+            try {
+              const assigneeData = await userAPI.getUserById(task.assigneeId);
+              assignee = {
+                id: assigneeData.id,
+                firstname: assigneeData.firstname,
+                lastname: assigneeData.lastname,
+                email: assigneeData.email,
+                // Add a computed name field for easier access
+                name:
+                  `${assigneeData.firstname || ""} ${
+                    assigneeData.lastname || ""
+                  }`.trim() ||
+                  assigneeData.email?.split("@")[0] ||
+                  "Unknown User",
+              };
+            } catch (err) {
+              console.error(
+                `Failed to fetch assignee ${task.assigneeId}:`,
+                err
+              );
+              // Set a placeholder assignee to avoid breaking the UI
+              assignee = {
+                id: task.assigneeId,
+                firstname: "",
+                lastname: "",
+                email: "unknown@example.com",
+                name: "Unknown User",
+              };
+            }
+          }
+          return {
+            id: task.id,
+            name: task.title,
+            description: task.description || "No description provided",
+            assignee: assignee, // This will now contain the full user data
+            assigneeId: task.assigneeId, // Keep this for reference
+            details: "Task",
+            status: transformStatus(task.status), // Transform status
+            dueDate:
+              task.dueDate ||
+              new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                .toISOString()
+                .split("T")[0],
+            createdAt: task.createdAt
+              ? new Date(task.createdAt).toISOString().split("T")[0]
+              : new Date().toISOString().split("T")[0],
+            priority: transformPriority(task.priority), // Transform priority
+          };
+        })
+      );
+      setTasks(transformedTasks);
+    } catch (err) {
+      console.error("Failed to fetch project tasks:", err);
+      setError(err.message || "Failed to load tasks");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTasks();
   }, [project]);
 
   const handleEditTask = (task) => {
     setEditingTask(task);
     setEditForm({
-      assignee: task.assignee?.name || "",
-      customAssignee: "",
+      assigneeId: task.assignee?.id || null,
     });
     setShowEditModal(true);
   };
@@ -193,34 +270,12 @@ const ProjectTab = ({ project }) => {
   };
 
   const handleSaveEdit = async () => {
-    if (!editForm.assignee.trim()) {
-      alert("Assignee is required");
-      return;
-    }
-
-    const assigneeName =
-      editForm.assignee === "custom"
-        ? editForm.customAssignee
-        : editForm.assignee;
-    if (!assigneeName.trim()) {
-      alert("Assignee is required");
-      return;
-    }
+    if (!editingTask) return;
 
     try {
-      // Find assignee
-      let assigneeId = null;
-      const existingAssignee = availableAssignees.find(
-        (a) => a.name === assigneeName
-      );
-
-      if (existingAssignee) {
-        assigneeId = existingAssignee.id;
-      }
-
-      if (assigneeId) {
-        // Update task assignee via API
-        await taskAPI.assignUser(editingTask.id, assigneeId);
+      // If no assignee selected (unassign)
+      if (!editForm.assigneeId) {
+        await taskAPI.unassignUser(editingTask.id);
 
         // Update local state
         setTasks((prev) =>
@@ -228,11 +283,36 @@ const ProjectTab = ({ project }) => {
             task.id === editingTask.id
               ? {
                   ...task,
-                  assignee: {
-                    id: existingAssignee.id,
-                    name: existingAssignee.name,
-                    email: existingAssignee.email,
-                  },
+                  assignee: null,
+                  assigneeId: null,
+                }
+              : task
+          )
+        );
+      }
+      // If assignee changed
+      else if (editForm.assigneeId !== editingTask.assigneeId) {
+        await taskAPI.assignUser(editingTask.id, editForm.assigneeId);
+
+        // Find the new assignee in availableUsers
+        const newAssignee = availableUsers.find(
+          (user) => user.id === editForm.assigneeId
+        );
+
+        // Update local state
+        setTasks((prev) =>
+          prev.map((task) =>
+            task.id === editingTask.id
+              ? {
+                  ...task,
+                  assignee: newAssignee
+                    ? {
+                        id: newAssignee.id,
+                        name: getDisplayName(newAssignee),
+                        email: newAssignee.email,
+                      }
+                    : null,
+                  assigneeId: editForm.assigneeId,
                 }
               : task
           )
@@ -241,8 +321,8 @@ const ProjectTab = ({ project }) => {
 
       closeEditModal();
     } catch (err) {
-      console.error("Failed to update task:", err);
-      alert("Failed to update task. Please try again.");
+      console.error("Failed to update task assignee:", err);
+      alert("Failed to update task assignee. Please try again.");
     }
   };
 
@@ -250,8 +330,7 @@ const ProjectTab = ({ project }) => {
     setShowEditModal(false);
     setEditingTask(null);
     setEditForm({
-      assignee: "",
-      customAssignee: "",
+      assigneeId: null,
     });
   };
 
@@ -275,26 +354,39 @@ const ProjectTab = ({ project }) => {
 
   const handleDrop = async (e, newStatus) => {
     e.preventDefault();
-    if (draggedTask && draggedTask.status !== newStatus) {
-      try {
-        // Update task status via API
-        await taskAPI.updateTaskStatus(
-          draggedTask.id,
-          newStatus.toUpperCase().replace(" ", "_")
-        );
 
-        // Update local state
-        setTasks((prevTasks) =>
-          prevTasks.map((task) =>
-            task.id === draggedTask.id ? { ...task, status: newStatus } : task
-          )
-        );
-      } catch (err) {
-        console.error("Failed to update task status:", err);
-        alert("Failed to update task status. Please try again.");
-      }
+    // Only proceed if we have a dragged task and the status is changing
+    if (!draggedTask || draggedTask.status === newStatus) return;
+
+    // Verify current user is the assignee
+    if (
+      !currentUser ||
+      !draggedTask.assignee ||
+      currentUser.id !== draggedTask.assignee.id
+    ) {
+      alert("Only the task assignee can move tasks");
+      return;
     }
-    setDraggedTask(null);
+
+    try {
+      // Convert status to backend format (e.g., "TO_DO")
+      const backendStatus = newStatus.toUpperCase().replace(" ", "_");
+
+      // Update task status via API
+      await taskAPI.updateTaskStatus(draggedTask.id, backendStatus);
+
+      // Optimistically update local state
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === draggedTask.id ? { ...task, status: newStatus } : task
+        )
+      );
+    } catch (err) {
+      console.error("Failed to update task status:", err);
+      alert("Failed to update task status. Please try again.");
+    } finally {
+      setDraggedTask(null);
+    }
   };
 
   const handleDragOver = (e) => {
@@ -333,65 +425,23 @@ const ProjectTab = ({ project }) => {
       return;
     }
 
-    const assigneeName =
-      taskForm.assignee === "custom"
-        ? taskForm.customAssignee
-        : taskForm.assignee;
-    if (!assigneeName.trim()) {
-      alert("Assignee is required");
-      return;
-    }
-
     try {
-      // Find assignee
-      let assigneeId = null;
-      const existingAssignee = availableAssignees.find(
-        (a) => a.name === assigneeName
-      );
-
-      if (existingAssignee) {
-        assigneeId = existingAssignee.id;
-      }
-
       // Create task data for API
       const taskData = {
         title: taskForm.name,
         description: taskForm.description || "No description provided",
-        projectId: project.id,
+        projectId: taskForm.projectId,
         priority: taskForm.priority.toUpperCase(),
-        status: "To Do",
-        assigneeId: assigneeId,
+        status: "TO_DO", // Use backend format
+        assigneeId: taskForm.assigneeId,
       };
 
       // Create task via API
-      const newTaskResponse = await taskAPI.createTask(taskData);
+      await taskAPI.createTask(taskData);
 
-      // Transform and add to local state
-      const newTask = {
-        id: newTaskResponse.id,
-        name: newTaskResponse.title,
-        description: newTaskResponse.description,
-        assignee: newTaskResponse.assignee
-          ? {
-              id: newTaskResponse.assignee.id,
-              name:
-                newTaskResponse.assignee.fullName ||
-                `${newTaskResponse.assignee.firstName} ${newTaskResponse.assignee.lastName}`,
-              email: newTaskResponse.assignee.email,
-            }
-          : null,
-        details: "Task",
-        status: newTaskResponse.status,
-        dueDate:
-          taskForm.dueDate ||
-          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split("T")[0],
-        createdAt: new Date().toISOString().split("T")[0],
-        priority: newTaskResponse.priority,
-      };
+      // ONLY refetch from server - don't update local state manually
+      await fetchTasks();
 
-      setTasks((prev) => [...prev, newTask]);
       closeModal();
     } catch (err) {
       console.error("Failed to create task:", err);
@@ -404,10 +454,10 @@ const ProjectTab = ({ project }) => {
     setTaskForm({
       name: "",
       description: "",
-      assignee: "",
-      customAssignee: "",
+      assigneeId: null,
       priority: "Medium",
       dueDate: "",
+      projectId: project.id,
     });
   };
 
@@ -1517,8 +1567,10 @@ const ProjectTab = ({ project }) => {
                               <Task
                                 key={task.id}
                                 task={task}
-                                handleDeleteTask={handleAddTask}
+                                handleDeleteTask={handleDeleteTask}
                                 handleEditTask={handleEditTask}
+                                projectLeadId={project.lead}
+                                currentUser={currentUser}
                               />
                             ))}
 
@@ -1588,6 +1640,7 @@ const ProjectTab = ({ project }) => {
                                   key={task.id}
                                   task={task}
                                   handleDragStart={handleDragStart}
+                                  currentUser={currentUser}
                                 />
                               ))}
                             {tasks.filter((task) => task.status === "To Do")
@@ -1666,6 +1719,7 @@ const ProjectTab = ({ project }) => {
                                   key={task.id}
                                   task={task}
                                   handleDragStart={handleDragStart}
+                                  currentUser={currentUser}
                                 />
                               ))}
                             {tasks.filter(
@@ -1741,6 +1795,7 @@ const ProjectTab = ({ project }) => {
                                   key={task.id}
                                   task={task}
                                   handleDragStart={handleDragStart}
+                                  currentUser={currentUser}
                                 />
                               ))}
                             {tasks.filter((task) => task.status === "Done")
@@ -1799,24 +1854,17 @@ const ProjectTab = ({ project }) => {
                             </div>
                           </div>
                           <div className="d-sm-flex align-items-center">
-                            <h3 className="mb-0 font-weight-semibold">
-                              {Math.round(
-                                (tasks.filter((task) => task.status === "Done")
-                                  .length /
-                                  tasks.length) *
-                                  100
-                              )}
-                              % Complete
-                            </h3>
                             <span
                               className={`badge badge-sm border ms-sm-3 px-2 ${
+                                tasks.length > 0 &&
                                 tasks.filter((task) => task.status === "Done")
                                   .length /
                                   tasks.length >=
-                                0.5
+                                  0.5
                                   ? "border-success text-success bg-success"
                                   : "border-warning text-warning bg-warning"
                               } border-radius-sm`}
+                              style={{ marginBottom: "4rem" }}
                             >
                               <svg
                                 width="9"
@@ -1847,75 +1895,138 @@ const ProjectTab = ({ project }) => {
                               ref={(canvas) => {
                                 if (canvas && !canvas.chartInstance) {
                                   const ctx = canvas.getContext("2d");
-                                  // Simulated progress data over time
-                                  const progressData = [
-                                    {
-                                      date: "2025-05-01",
-                                      completed: 0,
-                                      total: 3,
-                                    },
-                                    {
-                                      date: "2025-05-10",
-                                      completed: 0,
-                                      total: 3,
-                                    },
-                                    {
-                                      date: "2025-05-15",
-                                      completed: 1,
-                                      total: 3,
-                                    },
-                                    {
-                                      date: "2025-05-20",
-                                      completed: 1,
-                                      total: 3,
-                                    },
-                                    {
-                                      date: "2025-05-25",
-                                      completed: 1,
-                                      total: 3,
-                                    },
-                                    {
-                                      date: "2025-05-30",
-                                      completed: 1,
-                                      total: 3,
-                                    },
-                                    {
-                                      date: "2025-06-05",
-                                      completed: 1,
-                                      total: 3,
-                                    },
-                                  ];
 
-                                  // Simple canvas drawing for progress line
-                                  const width = canvas.width;
-                                  const height = canvas.height;
-                                  const padding = 40;
+                                  // Use the earliest task creation date as project start date
+                                  const taskDates = tasks.map(
+                                    (task) => new Date(task.createdAt)
+                                  );
+                                  const projectStartDate =
+                                    taskDates.length > 0
+                                      ? new Date(Math.min(...taskDates))
+                                      : new Date();
 
-                                  ctx.clearRect(0, 0, width, height);
-                                  ctx.strokeStyle = styles.brandColor;
-                                  ctx.lineWidth = 3;
-                                  ctx.beginPath();
+                                  const now = new Date();
+                                  const daysSinceStart = Math.ceil(
+                                    (now - projectStartDate) /
+                                      (1000 * 60 * 60 * 24)
+                                  );
 
-                                  progressData.forEach((point, index) => {
-                                    const x =
-                                      padding +
-                                      (index * (width - 2 * padding)) /
-                                        (progressData.length - 1);
-                                    const y =
-                                      height -
-                                      padding -
-                                      (point.completed / point.total) *
-                                        (height - 2 * padding);
+                                  // Generate timeline data points
+                                  const timelineData = [];
+                                  const totalTasks = tasks.length;
+                                  let completedCount = 0;
 
-                                    if (index === 0) {
-                                      ctx.moveTo(x, y);
+                                  for (let i = 0; i <= daysSinceStart; i++) {
+                                    const date = new Date(projectStartDate);
+                                    date.setDate(date.getDate() + i);
+
+                                    // Count tasks created before or on this date that are completed
+                                    if (i === daysSinceStart) {
+                                      // For current date, use actual completed count
+                                      completedCount = tasks.filter(
+                                        (t) => t.status === "Done"
+                                      ).length;
                                     } else {
-                                      ctx.lineTo(x, y);
-                                    }
-                                  });
+                                      // For past dates, simulate progress (simple linear progression for demo)
+                                      // In a real app, you would track historical completion data
+                                      const progressRatio =
+                                        totalTasks > 0
+                                          ? tasks.filter(
+                                              (t) => t.status === "Done"
+                                            ).length / totalTasks
+                                          : 0;
 
-                                  ctx.stroke();
-                                  canvas.chartInstance = true;
+                                      completedCount = Math.round(
+                                        progressRatio *
+                                          (i / daysSinceStart) *
+                                          totalTasks
+                                      );
+                                    }
+
+                                    timelineData.push({
+                                      date: date.toISOString().split("T")[0],
+                                      completed: completedCount,
+                                      total: totalTasks,
+                                    });
+                                  }
+
+                                  // Create chart
+                                  canvas.chartInstance = new Chart(ctx, {
+                                    type: "line",
+                                    data: {
+                                      labels: timelineData.map((d) => {
+                                        const date = new Date(d.date);
+                                        return `${
+                                          date.getMonth() + 1
+                                        }/${date.getDate()}`;
+                                      }),
+                                      datasets: [
+                                        {
+                                          label: "Completion %",
+                                          data: timelineData.map((d) =>
+                                            d.total > 0
+                                              ? Math.round(
+                                                  (d.completed / d.total) * 100
+                                                )
+                                              : 0
+                                          ),
+                                          backgroundColor: styles.brandColor,
+                                          borderColor: styles.brandColor,
+                                          borderWidth: 3,
+                                          pointBackgroundColor: "#fff",
+                                          pointBorderColor: styles.brandColor,
+                                          pointBorderWidth: 2,
+                                          pointRadius: 4,
+                                          pointHoverRadius: 6,
+                                          tension: 0.3,
+                                          fill: {
+                                            target: "origin",
+                                            above: "rgba(119, 77, 211, 0.1)",
+                                          },
+                                        },
+                                      ],
+                                    },
+                                    options: {
+                                      responsive: true,
+                                      maintainAspectRatio: false,
+                                      plugins: {
+                                        legend: {
+                                          display: false,
+                                        },
+                                        tooltip: {
+                                          callbacks: {
+                                            label: function (context) {
+                                              return `${
+                                                context.parsed.y
+                                              }% complete (${
+                                                timelineData[context.dataIndex]
+                                                  .completed
+                                              } of ${
+                                                timelineData[context.dataIndex]
+                                                  .total
+                                              } tasks)`;
+                                            },
+                                          },
+                                        },
+                                      },
+                                      scales: {
+                                        y: {
+                                          beginAtZero: true,
+                                          max: 100,
+                                          ticks: {
+                                            callback: function (value) {
+                                              return value + "%";
+                                            },
+                                          },
+                                        },
+                                        x: {
+                                          grid: {
+                                            display: false,
+                                          },
+                                        },
+                                      },
+                                    },
+                                  });
                                 }
                               }}
                             ></canvas>
@@ -2539,34 +2650,16 @@ const ProjectTab = ({ project }) => {
 
                 {/* Assignee Selection */}
                 <div className="mb-3">
-                  <label
-                    htmlFor="taskAssignee"
-                    className="form-label text-dark fw-semibold"
-                  >
-                    Assignee <span className="text-danger">*</span>
-                  </label>
-                  <select
-                    className="form-select border-2"
-                    id="taskAssignee"
-                    value={taskForm.assignee}
-                    onChange={(e) =>
-                      handleFormChange("assignee", e.target.value)
+                  <UserDropdown
+                    users={availableUsers}
+                    selectedUserId={taskForm.assigneeId}
+                    onSelect={(userId) =>
+                      handleFormChange("assigneeId", userId)
                     }
-                    style={{
-                      borderRadius: "0.5rem",
-                      padding: "0.75rem",
-                      borderColor: "#e9ecef",
-                      fontSize: "0.95rem",
-                    }}
-                  >
-                    <option value="">Select an assignee...</option>
-                    {availableAssignees.map((assignee, index) => (
-                      <option key={index} value={assignee.name}>
-                        {assignee.name} ({assignee.email})
-                      </option>
-                    ))}
-                    <option value="custom">+ Add new assignee</option>
-                  </select>
+                    currentUser={currentUser}
+                    isLoading={isLoadingUsers}
+                    error={usersError}
+                  />
                 </div>
 
                 {/* Custom Assignee Input */}
@@ -2672,12 +2765,7 @@ const ProjectTab = ({ project }) => {
                 type="button"
                 className="btn text-white shadow-sm"
                 onClick={handleAddTask}
-                disabled={
-                  !taskForm.name.trim() ||
-                  !taskForm.assignee ||
-                  (taskForm.assignee === "custom" &&
-                    !taskForm.customAssignee.trim())
-                }
+                disabled={!taskForm.name.trim() || !taskForm.assigneeId}
                 style={{
                   background: styles.brandGradient,
                   border: "none",
@@ -2685,17 +2773,9 @@ const ProjectTab = ({ project }) => {
                   padding: "0.6rem 1.5rem",
                   fontWeight: "500",
                   opacity:
-                    !taskForm.name.trim() ||
-                    !taskForm.assignee ||
-                    (taskForm.assignee === "custom" &&
-                      !taskForm.customAssignee.trim())
-                      ? 0.6
-                      : 1,
+                    !taskForm.name.trim() || !taskForm.assigneeId ? 0.6 : 1,
                   cursor:
-                    !taskForm.name.trim() ||
-                    !taskForm.assignee ||
-                    (taskForm.assignee === "custom" &&
-                      !taskForm.customAssignee.trim())
+                    !taskForm.name.trim() || !taskForm.assigneeId
                       ? "not-allowed"
                       : "pointer",
                 }}
@@ -2709,6 +2789,7 @@ const ProjectTab = ({ project }) => {
       )}
 
       {/* Edit Task Modal */}
+
       {showEditModal && editingTask && (
         <div
           className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
@@ -2741,7 +2822,7 @@ const ProjectTab = ({ project }) => {
               <div>
                 <h5 className="mb-0 text-white fw-bold">Edit Task</h5>
                 <small className="text-white opacity-8">
-                  Change assignee for "{editingTask.name}"
+                  Update task "{editingTask.name}"
                 </small>
               </div>
               <button
@@ -2757,75 +2838,23 @@ const ProjectTab = ({ project }) => {
 
             <div className="card-body p-4">
               <form>
-                {/* Current Task Info */}
-                <div className="mb-4 p-3 bg-light rounded">
-                  <h6 className="mb-2 text-dark fw-semibold">
-                    {editingTask.name}
-                  </h6>
-                  <p className="text-muted mb-0 small">
-                    {editingTask.description}
-                  </p>
-                </div>
-
-                {/* Assignee Selection */}
+                {/* New Assignee Selection */}
                 <div className="mb-3">
-                  <label
-                    htmlFor="editTaskAssignee"
-                    className="form-label text-dark fw-semibold"
-                  >
-                    New Assignee <span className="text-danger">*</span>
+                  <label className="form-label text-dark fw-semibold">
+                    Change Assignee
                   </label>
-                  <select
-                    className="form-select border-2"
-                    id="editTaskAssignee"
-                    value={editForm.assignee}
-                    onChange={(e) =>
-                      handleEditFormChange("assignee", e.target.value)
+                  <UserDropdown
+                    users={availableUsers}
+                    selectedUserId={editForm.assigneeId}
+                    onSelect={(userId) =>
+                      handleEditFormChange("assigneeId", userId)
                     }
-                    style={{
-                      borderRadius: "0.5rem",
-                      padding: "0.75rem",
-                      borderColor: "#e9ecef",
-                      fontSize: "0.95rem",
-                    }}
-                  >
-                    <option value="">Select an assignee...</option>
-                    {availableAssignees.map((assignee, index) => (
-                      <option key={index} value={assignee.name}>
-                        {assignee.name} ({assignee.email})
-                      </option>
-                    ))}
-                    <option value="custom">+ Add new assignee</option>
-                  </select>
+                    currentUser={currentUser}
+                    isLoading={isLoadingUsers}
+                    error={usersError}
+                    includeUnassignOption={true}
+                  />
                 </div>
-
-                {/* Custom Assignee Input */}
-                {editForm.assignee === "custom" && (
-                  <div className="mb-3">
-                    <label
-                      htmlFor="editCustomAssignee"
-                      className="form-label text-dark fw-semibold"
-                    >
-                      New Assignee Name <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control border-2"
-                      id="editCustomAssignee"
-                      placeholder="Enter assignee name..."
-                      value={editForm.customAssignee}
-                      onChange={(e) =>
-                        handleEditFormChange("customAssignee", e.target.value)
-                      }
-                      style={{
-                        borderRadius: "0.5rem",
-                        padding: "0.75rem",
-                        borderColor: "#e9ecef",
-                        fontSize: "0.95rem",
-                      }}
-                    />
-                  </div>
-                )}
               </form>
             </div>
 
@@ -2849,11 +2878,7 @@ const ProjectTab = ({ project }) => {
                 type="button"
                 className="btn text-white shadow-sm"
                 onClick={handleSaveEdit}
-                disabled={
-                  !editForm.assignee ||
-                  (editForm.assignee === "custom" &&
-                    !editForm.customAssignee.trim())
-                }
+                disabled={editForm.assigneeId === editingTask.assigneeId}
                 style={{
                   background: styles.brandGradient,
                   border: "none",
@@ -2861,15 +2886,9 @@ const ProjectTab = ({ project }) => {
                   padding: "0.6rem 1.5rem",
                   fontWeight: "500",
                   opacity:
-                    !editForm.assignee ||
-                    (editForm.assignee === "custom" &&
-                      !editForm.customAssignee.trim())
-                      ? 0.6
-                      : 1,
+                    editForm.assigneeId === editingTask.assigneeId ? 0.6 : 1,
                   cursor:
-                    !editForm.assignee ||
-                    (editForm.assignee === "custom" &&
-                      !editForm.customAssignee.trim())
+                    editForm.assigneeId === editingTask.assigneeId
                       ? "not-allowed"
                       : "pointer",
                 }}
