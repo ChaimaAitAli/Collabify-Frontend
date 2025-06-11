@@ -5,7 +5,6 @@ import UserHeader from "@/components/User/UserHeader";
 import Navbar from "@/components/Profile/Navbar";
 import NotificationsSettings from "@/components/User/NotificationsSettings";
 import ProfileInfo from "@/components/User/ProfileInfo";
-import InternalChat from "@/components/User/InternalChat";
 import LastArticles from "@/components/Profile/LastArticles";
 import "@/assets/css/nucleo-icons.css";
 import "@/assets/css/nucleo-svg.css";
@@ -104,18 +103,13 @@ const ProfilePage = ({ articles = [], chatMessages = [] }) => {
         <div className="container my-3 py-3">
           <div className="row">
             {/* Left Column */}
-            <div className="col-12 col-xl-4 mb-4">
+            <div className="col-12 col-xl-8 mb-4">
               <NotificationsSettings />
             </div>
 
             {/* Middle Column */}
             <div className="col-12 col-xl-4 mb-4">
               <ProfileInfo user={currentUser} />
-            </div>
-
-            {/* Right Column */}
-            <div className="col-12 col-xl-4 mb-4">
-              <InternalChat messages={chatMessages} />
             </div>
 
             {/* Full Width Articles Section */}

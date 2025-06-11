@@ -217,3 +217,16 @@ export const taskAPI = {
     });
   },
 };
+// Comments API functions
+export const commentAPI = {
+  createComment: async (projectId, commentData) => {
+    return apiRequest(`/api/projects/${projectId}/comments`, {
+      method: "POST",
+      body: JSON.stringify(commentData),
+    });
+  },
+
+  getCommentsByProject: async (projectId) => {
+    return apiRequest(`/api/projects/${projectId}/comments`);
+  },
+};

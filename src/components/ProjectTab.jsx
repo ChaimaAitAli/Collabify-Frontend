@@ -5,7 +5,7 @@ import LetterAvatar from "./LetterAvatar";
 import DraggableTask from "./DraggableTask";
 import Image from "next/image";
 import UserDropdown from "@/components/UserDropdown";
-import { taskAPI, projectAPI, userAPI } from "@/api/api";
+import { taskAPI, projectAPI, userAPI, commentAPI } from "@/api/api";
 import {
   Chart,
   LineController,
@@ -522,41 +522,24 @@ const ProjectTab = ({ project }) => {
     });
   };
 
-  const handleReply = (commentId, parentId = null) => {
-    if (!replyText.trim()) return;
+  const handleReply = async (commentId) => {
+    if (!replyText.trim() || !currentUser) return;
 
-    const newReply = {
-      id: Date.now(),
-      author: { name: "John Michael", email: "john@creative-tim.com" },
-      content: replyText,
-      timestamp: new Date().toISOString(),
-      edited: false,
-      likes: 0,
-      likedByUser: false,
-      replies: [],
-    };
+    try {
+      const replyData = {
+        content: replyText,
+        authorId: currentUser.id,
+        parentCommentId: commentId, // Set to the parent comment's ID
+      };
 
-    setComments((prev) => {
-      return prev.map((comment) => {
-        if (comment.id === commentId) {
-          return {
-            ...comment,
-            replies: [...comment.replies, newReply],
-          };
-        }
-        // Handle nested replies
-        if (comment.replies.some((reply) => reply.id === commentId)) {
-          return {
-            ...comment,
-            replies: addNestedReply(comment.replies, commentId, newReply),
-          };
-        }
-        return comment;
-      });
-    });
-
-    setReplyText("");
-    setReplyingTo(null);
+      await commentAPI.createComment(project.id, replyData);
+      setReplyText("");
+      setReplyingTo(null);
+      await fetchComments(); // Refresh comments
+    } catch (err) {
+      console.error("Failed to add reply:", err);
+      alert("Failed to add reply. Please try again.");
+    }
   };
 
   const addNestedReply = (replies, targetId, newReply) => {
@@ -599,7 +582,7 @@ const ProjectTab = ({ project }) => {
               <div className="card-body p-3">
                 <div className="d-flex align-items-start gap-3">
                   <LetterAvatar
-                    name={reply.author.name}
+                    name={getDisplayName(reply.author)}
                     size={level > 2 ? 32 : 36}
                   />
                   <div className="flex-grow-1">
@@ -609,7 +592,7 @@ const ProjectTab = ({ project }) => {
                           className="mb-0 fw-bold text-dark"
                           style={{ fontSize: level > 2 ? "0.85rem" : "0.9rem" }}
                         >
-                          {reply.author.name}
+                          {getDisplayName(reply.author)}
                         </h6>
                         <small className="text-muted d-flex align-items-center gap-2">
                           <i className="fas fa-clock"></i>
@@ -672,7 +655,7 @@ const ProjectTab = ({ project }) => {
                           backgroundColor: "#8dc71e",
                           color: "white",
                         }}
-                        onClick={() => setReplyingTo(reply.id)}
+                        onClick={() => setReplyingTo(comment.id)}
                       >
                         <span style={{ fontSize: "0.8rem" }}>Reply</span>
                       </button>
@@ -681,11 +664,20 @@ const ProjectTab = ({ project }) => {
                     {replyingTo === reply.id && (
                       <div className="mt-3">
                         <div className="d-flex gap-2">
-                          <LetterAvatar name="John Michael" size={28} />
+                          <LetterAvatar
+                            name={
+                              currentUser
+                                ? getDisplayName(currentUser)
+                                : "Anonymous"
+                            }
+                            size={28}
+                          />
                           <div className="flex-grow-1">
                             <textarea
                               className="form-control border-0 shadow-sm"
-                              placeholder={`Reply to ${reply.author.name}...`}
+                              placeholder={`Reply to ${getDisplayName(
+                                reply.author
+                              )}...`}
                               rows="2"
                               value={replyText}
                               onChange={(e) => setReplyText(e.target.value)}
@@ -734,25 +726,93 @@ const ProjectTab = ({ project }) => {
       </div>
     );
   };
-
+  // State for comments
   const [newComment, setNewComment] = useState("");
+  const [comments, setComments] = useState([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [commentError, setCommentError] = useState(null);
   const [editingComment, setEditingComment] = useState(null);
   const [editCommentText, setEditCommentText] = useState("");
 
+  // Fetch comments when comments tab is active and project changes
+  useEffect(() => {
+    if (activeTab === "comments" && project?.id) {
+      fetchComments();
+    }
+  }, [activeTab, project]);
+
+  const fetchComments = async () => {
+    try {
+      setIsLoadingComments(true);
+      setCommentError(null);
+      const commentsData = await commentAPI.getCommentsByProject(project.id);
+
+      // First create a map of all comments by their ID
+      const commentMap = {};
+
+      // Fetch all author details in parallel
+      const authorIds = [...new Set(commentsData.map((c) => c.authorId))];
+      const authors = await Promise.all(
+        authorIds.map((id) => userAPI.getUserById(id))
+      );
+      const authorMap = authors.reduce((acc, author) => {
+        acc[author.id] = author;
+        return acc;
+      }, {});
+
+      commentsData.forEach((comment) => {
+        commentMap[comment.id] = {
+          ...comment,
+          author: {
+            ...authorMap[comment.authorId],
+            name: getDisplayName(authorMap[comment.authorId]),
+          },
+          replies: [], // Initialize empty replies array
+        };
+      });
+
+      // Then build the nested structure
+      const nestedComments = [];
+      commentsData.forEach((comment) => {
+        if (comment.parentCommentId) {
+          // This is a reply, add it to its parent's replies array
+          const parent = commentMap[comment.parentCommentId];
+          if (parent) {
+            parent.replies.push(commentMap[comment.id]);
+          }
+        } else {
+          // This is a top-level comment
+          nestedComments.push(commentMap[comment.id]);
+        }
+      });
+
+      setComments(nestedComments);
+    } catch (err) {
+      console.error("Failed to fetch comments:", err);
+      setCommentError("Failed to load comments");
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
+
   // Add comment function
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !currentUser) return;
 
-    const comment = {
-      id: comments.length + 1,
-      author: { name: "John Michael", email: "john@creative-tim.com" }, // Current user
-      content: newComment,
-      timestamp: new Date().toISOString(),
-      edited: false,
-    };
+    try {
+      const commentData = {
+        content: newComment,
+        authorId: currentUser.id,
+        parentCommentId: null, // Explicitly set to null for top-level comments
+      };
 
-    setComments((prev) => [comment, ...prev]);
-    setNewComment("");
+      await commentAPI.createComment(project.id, commentData);
+      setNewComment("");
+      await fetchComments(); // Refresh comments
+    } catch (err) {
+      console.error("Failed to add comment:", err);
+      alert("Failed to add comment. Please try again.");
+    }
   };
 
   // Edit comment functions
@@ -806,81 +866,6 @@ const ProjectTab = ({ project }) => {
       );
     }
   };
-  const [comments, setComments] = useState([
-    {
-      id: 1,
-      author: { name: "John Michael", email: "john@creative-tim.com" },
-      content:
-        "Great progress on the dashboard design! The new color scheme looks much more modern.",
-      timestamp: "2025-06-07T14:30:00Z",
-      edited: false,
-      likes: 5,
-      likedByUser: true,
-      replies: [
-        {
-          id: 11,
-          author: { name: "Sarah Wilson", email: "sarah@creative-tim.com" },
-          content: "I totally agree! The purple gradient looks fantastic.",
-          timestamp: "2025-06-07T15:00:00Z",
-          edited: false,
-          likes: 2,
-          likedByUser: false,
-          replies: [],
-        },
-      ],
-    },
-    {
-      id: 2,
-      author: { name: "Alexa Liras", email: "alexa@creative-tim.com" },
-      content:
-        "I've noticed some navigation issues on mobile. Should we prioritize fixing those before the next milestone?",
-      timestamp: "2025-06-07T10:15:00Z",
-      edited: false,
-      likes: 3,
-      likedByUser: false,
-      replies: [],
-    },
-    {
-      id: 3,
-      author: { name: "Laurent Perrier", email: "laurent@creative-tim.com" },
-      content:
-        "API integration is complete! All endpoints are now responding correctly. Ready for frontend implementation.",
-      timestamp: "2025-06-06T16:45:00Z",
-      edited: true,
-      likes: 8,
-      likedByUser: true,
-      replies: [
-        {
-          id: 31,
-          author: {
-            name: "Michael Johnson",
-            email: "michael@creative-tim.com",
-          },
-          content: "Excellent work! I'll start the frontend integration today.",
-          timestamp: "2025-06-06T17:00:00Z",
-          edited: false,
-          likes: 1,
-          likedByUser: false,
-          replies: [
-            {
-              id: 311,
-              author: {
-                name: "Laurent Perrier",
-                email: "laurent@creative-tim.com",
-              },
-              content:
-                "Perfect! Let me know if you need any clarification on the endpoints.",
-              timestamp: "2025-06-06T17:15:00Z",
-              edited: false,
-              likes: 0,
-              likedByUser: false,
-              replies: [],
-            },
-          ],
-        },
-      ],
-    },
-  ]);
 
   return (
     <>
@@ -1028,38 +1013,12 @@ const ProjectTab = ({ project }) => {
                           </p>
                         </div>
                         <div className="d-flex align-items-center gap-3">
-                          <span className="badge bg-white text-dark fw-bold px-3 py-2">
+                          <span
+                            className="badge text-dark fw-bold px-3 py-2"
+                            style={{ backgroundColor: "white" }}
+                          >
                             {comments.length} Comments
                           </span>
-                          <div className="d-flex">
-                            {availableAssignees
-                              .slice(0, 4)
-                              .map((assignee, index) => (
-                                <div
-                                  key={assignee.name}
-                                  className="ms-n2"
-                                  style={{ zIndex: 10 - index }}
-                                >
-                                  <LetterAvatar
-                                    name={getDisplayName(assignee)}
-                                    size={32}
-                                  />
-                                </div>
-                              ))}
-                            {availableAssignees.length > 4 && (
-                              <div
-                                className="ms-n2 d-flex align-items-center justify-content-center text-white fw-bold rounded-circle border border-2 border-white"
-                                style={{
-                                  width: 32,
-                                  height: 32,
-                                  backgroundColor: "rgba(255,255,255,0.2)",
-                                  fontSize: "12px",
-                                }}
-                              >
-                                +{availableAssignees.length - 4}
-                              </div>
-                            )}
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -1082,7 +1041,14 @@ const ProjectTab = ({ project }) => {
                         >
                           <div className="card-body p-4">
                             <div className="d-flex align-items-start gap-3">
-                              <LetterAvatar name="John Michael" size={40} />
+                              <LetterAvatar
+                                name={
+                                  currentUser
+                                    ? getDisplayName(currentUser)
+                                    : "Anonymous"
+                                }
+                                size={40}
+                              />
                               <div className="flex-grow-1 position-relative">
                                 <textarea
                                   className="form-control border-0 shadow-sm pe-5"
@@ -1263,14 +1229,14 @@ const ProjectTab = ({ project }) => {
                                   <div className="card-body p-4">
                                     <div className="d-flex align-items-start gap-3">
                                       <LetterAvatar
-                                        name={comment.author.name}
+                                        name={getDisplayName(comment.author)}
                                         size={44}
                                       />
                                       <div className="flex-grow-1">
                                         <div className="d-flex align-items-center justify-content-between mb-2">
                                           <div>
                                             <h6 className="mb-0 fw-bold text-dark">
-                                              {comment.author.name}
+                                              {getDisplayName(comment.author)}
                                             </h6>
                                             <small className="text-muted d-flex align-items-center gap-2">
                                               <i className="fas fa-clock"></i>
@@ -1332,51 +1298,6 @@ const ProjectTab = ({ project }) => {
 
                                             <div className="d-flex align-items-center gap-3">
                                               <button
-                                                className="btn btn-sm btn-light rounded-pill d-flex align-items-center gap-2"
-                                                onClick={() =>
-                                                  handleLikeComment(comment.id)
-                                                }
-                                                style={{
-                                                  border: "none",
-                                                  backgroundColor:
-                                                    comment.likedByUser
-                                                      ? "#ffe6e6"
-                                                      : "transparent",
-                                                  transition: "all 0.3s ease",
-                                                }}
-                                              >
-                                                <svg
-                                                  width="16"
-                                                  height="16"
-                                                  viewBox="0 0 24 24"
-                                                  fill={
-                                                    comment.likedByUser
-                                                      ? "#dc3545"
-                                                      : "#6c757d"
-                                                  }
-                                                  stroke={
-                                                    comment.likedByUser
-                                                      ? "#dc3545"
-                                                      : "#6c757d"
-                                                  }
-                                                  strokeWidth="1.5"
-                                                  style={{
-                                                    transform:
-                                                      comment.likedByUser
-                                                        ? "scale(1.1)"
-                                                        : "scale(1)",
-                                                    transition: "all 0.3s ease",
-                                                  }}
-                                                >
-                                                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                                                </svg>
-                                                {comment.likes > 0 && (
-                                                  <span className="small fw-bold">
-                                                    {comment.likes}
-                                                  </span>
-                                                )}
-                                              </button>
-                                              <button
                                                 className="btn btn-sm rounded-pill d-flex align-items-center gap-1"
                                                 style={{
                                                   backgroundColor: "#8dc71e",
@@ -1394,13 +1315,21 @@ const ProjectTab = ({ project }) => {
                                               <div className="mt-3">
                                                 <div className="d-flex gap-3">
                                                   <LetterAvatar
-                                                    name="John Michael"
+                                                    name={
+                                                      currentUser
+                                                        ? getDisplayName(
+                                                            currentUser
+                                                          )
+                                                        : "Anonymous"
+                                                    }
                                                     size={36}
                                                   />
                                                   <div className="flex-grow-1">
                                                     <textarea
                                                       className="form-control border-0 shadow-sm"
-                                                      placeholder={`Reply to ${comment.author.name}...`}
+                                                      placeholder={`Reply to ${getDisplayName(
+                                                        comment.author
+                                                      )}...`}
                                                       rows="3"
                                                       value={replyText}
                                                       onChange={(e) =>
