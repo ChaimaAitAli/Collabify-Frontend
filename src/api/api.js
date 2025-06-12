@@ -1,12 +1,13 @@
 // api/api.js
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
+
 // Generic API request function
 async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
 
   const config = {
-    credentials: "include",
+   // credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
